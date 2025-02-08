@@ -8,11 +8,11 @@ use App\Enums\Models\Wiki\ThemeType;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
+use App\Models\Wiki\Group;
 use App\Models\Wiki\Song;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -67,22 +67,6 @@ class AnimeThemeTest extends TestCase
     }
 
     /**
-     * Themes shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $theme = AnimeTheme::factory()
-            ->for(Anime::factory())
-            ->createOne();
-
-        static::assertEquals(1, $theme->audits()->count());
-    }
-
-    /**
      * Themes shall be nameable.
      *
      * @return void
@@ -94,6 +78,20 @@ class AnimeThemeTest extends TestCase
             ->createOne();
 
         static::assertIsString($theme->getName());
+    }
+
+    /**
+     * Themes shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $theme = AnimeTheme::factory()
+            ->for(Anime::factory())
+            ->createOne();
+
+        static::assertIsString($theme->getSubtitle());
     }
 
     /**
@@ -109,6 +107,22 @@ class AnimeThemeTest extends TestCase
 
         static::assertInstanceOf(BelongsTo::class, $theme->anime());
         static::assertInstanceOf(Anime::class, $theme->anime()->first());
+    }
+
+    /**
+     * Themes shall belong to a Group.
+     *
+     * @return void
+     */
+    public function testGroup(): void
+    {
+        $theme = AnimeTheme::factory()
+            ->for(Anime::factory())
+            ->for(Group::factory())
+            ->createOne();
+
+        static::assertInstanceOf(BelongsTo::class, $theme->group());
+        static::assertInstanceOf(Group::class, $theme->group()->first());
     }
 
     /**

@@ -4,29 +4,37 @@ declare(strict_types=1);
 
 namespace App\Http\Api\Schema\Wiki;
 
+use App\Contracts\Http\Api\Schema\InteractsWithPivots;
+use App\Contracts\Http\Api\Schema\SearchableSchema;
 use App\Http\Api\Field\Base\IdField;
 use App\Http\Api\Field\Field;
-use App\Http\Api\Field\Wiki\Song\SongAsField;
 use App\Http\Api\Field\Wiki\Song\SongTitleField;
 use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Schema\EloquentSchema;
+use App\Http\Api\Schema\Pivot\Wiki\ArtistSongSchema;
+use App\Http\Api\Schema\Pivot\Wiki\SongResourceSchema;
 use App\Http\Api\Schema\Wiki\Anime\ThemeSchema;
+use App\Http\Resources\Pivot\Wiki\Resource\ArtistSongResource;
+use App\Http\Resources\Pivot\Wiki\Resource\SongResourceResource;
 use App\Http\Resources\Wiki\Resource\SongResource;
 use App\Models\Wiki\Song;
 
 /**
  * Class SongSchema.
  */
-class SongSchema extends EloquentSchema
+class SongSchema extends EloquentSchema implements InteractsWithPivots, SearchableSchema
 {
     /**
-     * The model this schema represents.
+     * Get the allowed pivots of the schema.
      *
-     * @return string
+     * @return AllowedInclude[]
      */
-    public function model(): string
+    public function allowedPivots(): array
     {
-        return Song::class;
+        return [
+            new AllowedInclude(new ArtistSongSchema(), ArtistSongResource::$wrap),
+            new AllowedInclude(new SongResourceSchema(), SongResourceResource::$wrap)
+        ];
     }
 
     /**
@@ -46,11 +54,16 @@ class SongSchema extends EloquentSchema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), Song::RELATION_ANIME),
-            new AllowedInclude(new ArtistSchema(), Song::RELATION_ARTISTS),
-            new AllowedInclude(new ThemeSchema(), Song::RELATION_ANIMETHEMES),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), Song::RELATION_ANIME),
+                new AllowedInclude(new ArtistSchema(), Song::RELATION_ARTISTS),
+                new AllowedInclude(new ExternalResourceSchema(), Song::RELATION_RESOURCES),
+                new AllowedInclude(new GroupSchema(), Song::RELATION_THEME_GROUPS),
+                new AllowedInclude(new ThemeSchema(), Song::RELATION_ANIMETHEMES),
+            ]),
+            []
+        );
     }
 
     /**
@@ -63,9 +76,8 @@ class SongSchema extends EloquentSchema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Song::ATTRIBUTE_ID),
-                new SongTitleField(),
-                new SongAsField(),
+                new IdField($this, Song::ATTRIBUTE_ID),
+                new SongTitleField($this),
             ],
         );
     }

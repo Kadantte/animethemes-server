@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Events\Wiki\Video;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Video as VideoFilament;
 use App\Models\Wiki\Video;
-use App\Nova\Resources\Wiki\Video as VideoResource;
 
 /**
  * Class VideoDeleted.
@@ -46,7 +46,7 @@ class VideoDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -56,13 +56,13 @@ class VideoDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = VideoResource::uriKey();
+        $uriKey = VideoFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

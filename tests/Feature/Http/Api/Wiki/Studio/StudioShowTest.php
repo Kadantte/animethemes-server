@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Studio;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ImageFacet;
 use App\Enums\Models\Wiki\ResourceSite;
@@ -12,7 +13,7 @@ use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Studio\StudioReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\StudioSchema;
 use App\Http\Resources\Wiki\Resource\StudioResource;
 use App\Models\Wiki\Anime;
@@ -22,7 +23,7 @@ use App\Models\Wiki\Studio;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -31,7 +32,6 @@ use Tests\TestCase;
 class StudioShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Studio Show Endpoint shall return a Studio Resource.
@@ -47,7 +47,7 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery()))
+                    new StudioResource($studio, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -63,9 +63,7 @@ class StudioShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $studio = Studio::factory()->createOne();
-
-        $studio->delete();
+        $studio = Studio::factory()->trashed()->createOne();
 
         $studio->unsetRelations();
 
@@ -74,7 +72,7 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery()))
+                    new StudioResource($studio, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -111,7 +109,7 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery($parameters)))
+                    new StudioResource($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -146,7 +144,47 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery($parameters)))
+                    new StudioResource($studio, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Studio Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Studio::RELATION_ANIME,
+        ];
+
+        $studio = Studio::factory()
+            ->has(Anime::factory()->count($this->faker->randomDigitNotNull()))
+            ->create();
+
+        $studio->unsetRelations()->load([
+            Studio::RELATION_ANIME => function (BelongsToMany $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.studio.show', ['studio' => $studio] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new StudioResource($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -162,11 +200,11 @@ class StudioShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Studio::RELATION_ANIME,
         ];
@@ -186,7 +224,7 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery($parameters)))
+                    new StudioResource($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -234,7 +272,7 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery($parameters)))
+                    new StudioResource($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -250,11 +288,11 @@ class StudioShowTest extends TestCase
      */
     public function testResourcesBySite(): void
     {
-        $siteFilter = ResourceSite::getRandomInstance();
+        $siteFilter = Arr::random(ResourceSite::cases());
 
         $parameters = [
             FilterParser::param() => [
-                ExternalResource::ATTRIBUTE_SITE => $siteFilter->description,
+                ExternalResource::ATTRIBUTE_SITE => $siteFilter->localize(),
             ],
             IncludeParser::param() => Studio::RELATION_RESOURCES,
         ];
@@ -274,7 +312,7 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery($parameters)))
+                    new StudioResource($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -290,11 +328,11 @@ class StudioShowTest extends TestCase
      */
     public function testImagesByFacet(): void
     {
-        $facetFilter = ImageFacet::getRandomInstance();
+        $facetFilter = Arr::random(ImageFacet::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Image::ATTRIBUTE_FACET => $facetFilter->description,
+                Image::ATTRIBUTE_FACET => $facetFilter->localize(),
             ],
             IncludeParser::param() => Studio::RELATION_IMAGES,
         ];
@@ -314,7 +352,7 @@ class StudioShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioResource($studio, new StudioReadQuery($parameters)))
+                    new StudioResource($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

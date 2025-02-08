@@ -4,126 +4,142 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki;
 
-use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Series\SeriesDestroyRequest;
-use App\Http\Requests\Api\Wiki\Series\SeriesForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Series\SeriesIndexRequest;
-use App\Http\Requests\Api\Wiki\Series\SeriesRestoreRequest;
-use App\Http\Requests\Api\Wiki\Series\SeriesShowRequest;
-use App\Http\Requests\Api\Wiki\Series\SeriesStoreRequest;
-use App\Http\Requests\Api\Wiki\Series\SeriesUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Collection\SeriesCollection;
+use App\Http\Resources\Wiki\Resource\SeriesResource;
 use App\Models\Wiki\Series;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class SeriesController.
  */
-class SeriesController extends Controller
+class SeriesController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Series::class, 'series');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  SeriesIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return SeriesCollection
      */
-    #[Route(fullUri: 'series', name: 'series.index')]
-    public function index(SeriesIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): SeriesCollection
     {
-        $query = $request->getQuery();
+        $query = new Query($request->validated());
 
-        if ($query->hasSearchCriteria()) {
-            return $query->search(PaginationStrategy::OFFSET())->toResponse($request);
-        }
+        $series = $query->hasSearchCriteria()
+            ? $action->search($query, $request->schema())
+            : $action->index(Series::query(), $query, $request->schema());
 
-        return $query->index()->toResponse($request);
+        return new SeriesCollection($series, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  SeriesStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return SeriesResource
      */
-    #[Route(fullUri: 'series', name: 'series.store', middleware: 'auth:sanctum')]
-    public function store(SeriesStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): SeriesResource
     {
-        $resource = $request->getQuery()->store();
+        $series = $action->store(Series::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new SeriesResource($series, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  SeriesShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Series  $series
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return SeriesResource
      */
-    #[Route(fullUri: 'series/{series}', name: 'series.show')]
-    public function show(SeriesShowRequest $request, Series $series): JsonResponse
+    public function show(ShowRequest $request, Series $series, ShowAction $action): SeriesResource
     {
-        $resource = $request->getQuery()->show($series);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($series, $query, $request->schema());
+
+        return new SeriesResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  SeriesUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Series  $series
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return SeriesResource
      */
-    #[Route(fullUri: 'series/{series}', name: 'series.update', middleware: 'auth:sanctum')]
-    public function update(SeriesUpdateRequest $request, Series $series): JsonResponse
+    public function update(UpdateRequest $request, Series $series, UpdateAction $action): SeriesResource
     {
-        $resource = $request->getQuery()->update($series);
+        $updated = $action->update($series, $request->validated());
 
-        return $resource->toResponse($request);
+        return new SeriesResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  SeriesDestroyRequest  $request
      * @param  Series  $series
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return SeriesResource
      */
-    #[Route(fullUri: 'series/{series}', name: 'series.destroy', middleware: 'auth:sanctum')]
-    public function destroy(SeriesDestroyRequest $request, Series $series): JsonResponse
+    public function destroy(Series $series, DestroyAction $action): SeriesResource
     {
-        $resource = $request->getQuery()->destroy($series);
+        $deleted = $action->destroy($series);
 
-        return $resource->toResponse($request);
+        return new SeriesResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  SeriesRestoreRequest  $request
      * @param  Series  $series
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return SeriesResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/series/{series}', name: 'series.restore', middleware: 'auth:sanctum')]
-    public function restore(SeriesRestoreRequest $request, Series $series): JsonResponse
+    public function restore(Series $series, RestoreAction $action): SeriesResource
     {
-        $resource = $request->getQuery()->restore($series);
+        $restored = $action->restore($series);
 
-        return $resource->toResponse($request);
+        return new SeriesResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  SeriesForceDeleteRequest  $request
      * @param  Series  $series
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/series/{series}', name: 'series.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(SeriesForceDeleteRequest $request, Series $series): JsonResponse
+    public function forceDelete(Series $series, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($series);
+        $message = $action->forceDelete($series);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

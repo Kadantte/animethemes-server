@@ -6,9 +6,9 @@ namespace App\Http\Api\Field\Wiki\Anime\Synonym;
 
 use App\Contracts\Http\Api\Field\CreatableField;
 use App\Contracts\Http\Api\Field\SelectableField;
-use App\Contracts\Http\Api\Field\UpdatableField;
-use App\Http\Api\Criteria\Field\Criteria;
 use App\Http\Api\Field\Field;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use Illuminate\Http\Request;
@@ -17,14 +17,16 @@ use Illuminate\Validation\Rule;
 /**
  * Class SynonymAnimeIdField.
  */
-class SynonymAnimeIdField extends Field implements CreatableField, SelectableField, UpdatableField
+class SynonymAnimeIdField extends Field implements CreatableField, SelectableField
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(AnimeSynonym::ATTRIBUTE_ANIME);
+        parent::__construct($schema, AnimeSynonym::ATTRIBUTE_ANIME);
     }
 
     /**
@@ -38,35 +40,20 @@ class SynonymAnimeIdField extends Field implements CreatableField, SelectableFie
         return [
             'required',
             'integer',
-            Rule::exists(Anime::TABLE, Anime::ATTRIBUTE_ID),
+            Rule::exists(Anime::class, Anime::ATTRIBUTE_ID),
         ];
     }
 
     /**
      * Determine if the field should be included in the select clause of our query.
      *
-     * @param  Criteria|null  $criteria
+     * @param  Query  $query
+     * @param  Schema  $schema
      * @return bool
      */
-    public function shouldSelect(?Criteria $criteria): bool
+    public function shouldSelect(Query $query, Schema $schema): bool
     {
         // Needed to match anime relation.
         return true;
-    }
-
-    /**
-     * Set the update validation rules for the field.
-     *
-     * @param  Request  $request
-     * @return array
-     */
-    public function getUpdateRules(Request $request): array
-    {
-        return [
-            'sometimes',
-            'required',
-            'integer',
-            Rule::exists(Anime::TABLE, Anime::ATTRIBUTE_ID),
-        ];
     }
 }

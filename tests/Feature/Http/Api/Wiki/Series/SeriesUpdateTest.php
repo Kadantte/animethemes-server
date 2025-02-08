@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Series;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Series;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class SeriesUpdateTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Series Update Endpoint shall be protected by sanctum.
      *
@@ -34,6 +32,46 @@ class SeriesUpdateTest extends TestCase
     }
 
     /**
+     * The Series Update Endpoint shall forbid users without the update series permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $series = Series::factory()->createOne();
+
+        $parameters = Series::factory()->raw();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.series.update', ['series' => $series] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Series Update Endpoint shall forbid users from updating a series that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $series = Series::factory()->trashed()->createOne();
+
+        $parameters = Series::factory()->raw();
+
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Series::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.series.update', ['series' => $series] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Series Update Endpoint shall update a series.
      *
      * @return void
@@ -44,7 +82,7 @@ class SeriesUpdateTest extends TestCase
 
         $parameters = Series::factory()->raw();
 
-        $user = User::factory()->withPermission('update series')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Series::class))->createOne();
 
         Sanctum::actingAs($user);
 

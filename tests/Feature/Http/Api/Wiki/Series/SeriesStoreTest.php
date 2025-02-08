@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Series;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Series;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class SeriesStoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Series Store Endpoint shall be protected by sanctum.
      *
@@ -32,13 +30,31 @@ class SeriesStoreTest extends TestCase
     }
 
     /**
+     * The Series Store Endpoint shall forbid users without the create series permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $series = Series::factory()->makeOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->post(route('api.series.store', $series->toArray()));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Series Store Endpoint shall require name & slug fields.
      *
      * @return void
      */
     public function testRequiredFields(): void
     {
-        $user = User::factory()->withPermission('create series')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(Series::class))->createOne();
 
         Sanctum::actingAs($user);
 
@@ -59,13 +75,13 @@ class SeriesStoreTest extends TestCase
     {
         $parameters = Series::factory()->raw();
 
-        $user = User::factory()->withPermission('create series')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(Series::class))->createOne();
 
         Sanctum::actingAs($user);
 
         $response = $this->post(route('api.series.store', $parameters));
 
         $response->assertCreated();
-        static::assertDatabaseCount(Series::TABLE, 1);
+        static::assertDatabaseCount(Series::class, 1);
     }
 }

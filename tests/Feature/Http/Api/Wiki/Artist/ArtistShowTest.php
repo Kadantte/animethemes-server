@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Artist;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ImageFacet;
 use App\Enums\Models\Wiki\ResourceSite;
@@ -13,7 +14,7 @@ use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Artist\ArtistReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\ArtistSchema;
 use App\Http\Resources\Wiki\Resource\ArtistResource;
 use App\Models\Wiki\Anime;
@@ -27,7 +28,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -36,7 +37,6 @@ use Tests\TestCase;
 class ArtistShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Artist Show Endpoint shall return an Artist Resource.
@@ -52,7 +52,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery()))
+                    new ArtistResource($artist, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -68,9 +68,7 @@ class ArtistShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $artist = Artist::factory()->createOne();
-
-        $artist->delete();
+        $artist = Artist::factory()->trashed()->createOne();
 
         $artist->unsetRelations();
 
@@ -79,7 +77,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery()))
+                    new ArtistResource($artist, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -114,7 +112,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -149,60 +147,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
-                        ->response()
-                        ->getData()
-                ),
-                true
-            )
-        );
-    }
-
-    /**
-     * The Artist Show Endpoint shall support constrained eager loading of themes by group.
-     *
-     * @return void
-     */
-    public function testThemesByGroup(): void
-    {
-        $groupFilter = $this->faker->word();
-        $excludedGroup = $this->faker->word();
-
-        $parameters = [
-            FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_GROUP => $groupFilter,
-            ],
-            IncludeParser::param() => Artist::RELATION_ANIMETHEMES,
-        ];
-
-        $artist = Artist::factory()
-            ->has(
-                Song::factory()
-                    ->count($this->faker->randomDigitNotNull())
-                    ->has(
-                        AnimeTheme::factory()
-                            ->for(Anime::factory())
-                            ->count($this->faker->randomDigitNotNull())
-                            ->state(new Sequence(
-                                [AnimeTheme::ATTRIBUTE_GROUP => $groupFilter],
-                                [AnimeTheme::ATTRIBUTE_GROUP => $excludedGroup],
-                            ))
-                    )
-            )
-            ->createOne();
-
-        $artist->unsetRelations()->load([
-            Artist::RELATION_ANIMETHEMES => function (HasMany $query) use ($groupFilter) {
-                $query->where(AnimeTheme::ATTRIBUTE_GROUP, $groupFilter);
-            },
-        ]);
-
-        $response = $this->get(route('api.artist.show', ['artist' => $artist] + $parameters));
-
-        $response->assertJson(
-            json_decode(
-                json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -255,7 +200,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -271,11 +216,11 @@ class ArtistShowTest extends TestCase
      */
     public function testThemesByType(): void
     {
-        $typeFilter = ThemeType::getRandomInstance();
+        $typeFilter = Arr::random(ThemeType::cases());
 
         $parameters = [
             FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->description,
+                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_ANIMETHEMES,
         ];
@@ -303,7 +248,55 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Artist Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Artist::RELATION_ANIME,
+        ];
+
+        $artist = Artist::factory()
+            ->has(
+                Song::factory()
+                    ->count($this->faker->randomDigitNotNull())
+                    ->has(
+                        AnimeTheme::factory()
+                            ->for(Anime::factory())
+                            ->count($this->faker->randomDigitNotNull())
+                    )
+            )
+            ->createOne();
+
+        $artist->unsetRelations()->load([
+            Artist::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.artist.show', ['artist' => $artist] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -319,11 +312,11 @@ class ArtistShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_ANIME,
         ];
@@ -351,7 +344,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -405,7 +398,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -421,11 +414,11 @@ class ArtistShowTest extends TestCase
      */
     public function testResourcesBySite(): void
     {
-        $siteFilter = ResourceSite::getRandomInstance();
+        $siteFilter = Arr::random(ResourceSite::cases());
 
         $parameters = [
             FilterParser::param() => [
-                ExternalResource::ATTRIBUTE_SITE => $siteFilter->description,
+                ExternalResource::ATTRIBUTE_SITE => $siteFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_RESOURCES,
         ];
@@ -445,7 +438,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -461,11 +454,11 @@ class ArtistShowTest extends TestCase
      */
     public function testImagesByFacet(): void
     {
-        $facetFilter = ImageFacet::getRandomInstance();
+        $facetFilter = Arr::random(ImageFacet::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Image::ATTRIBUTE_FACET => $facetFilter->description,
+                Image::ATTRIBUTE_FACET => $facetFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_IMAGES,
         ];
@@ -485,7 +478,7 @@ class ArtistShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistResource($artist, new ArtistReadQuery($parameters)))
+                    new ArtistResource($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

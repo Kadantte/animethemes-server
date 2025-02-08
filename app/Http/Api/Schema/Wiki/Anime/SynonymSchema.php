@@ -4,31 +4,24 @@ declare(strict_types=1);
 
 namespace App\Http\Api\Schema\Wiki\Anime;
 
+use App\Contracts\Http\Api\Schema\SearchableSchema;
 use App\Http\Api\Field\Base\IdField;
 use App\Http\Api\Field\Field;
 use App\Http\Api\Field\Wiki\Anime\Synonym\SynonymAnimeIdField;
 use App\Http\Api\Field\Wiki\Anime\Synonym\SynonymTextField;
+use App\Http\Api\Field\Wiki\Anime\Synonym\SynonymTypeField;
 use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Schema\EloquentSchema;
 use App\Http\Api\Schema\Wiki\AnimeSchema;
 use App\Http\Resources\Wiki\Anime\Resource\SynonymResource;
 use App\Models\Wiki\Anime\AnimeSynonym;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class SynonymSchema.
  */
-class SynonymSchema extends EloquentSchema
+class SynonymSchema extends EloquentSchema implements SearchableSchema
 {
-    /**
-     * The model this schema represents.
-     *
-     * @return string
-     */
-    public function model(): string
-    {
-        return AnimeSynonym::class;
-    }
-
     /**
      * Get the type of the resource.
      *
@@ -46,9 +39,12 @@ class SynonymSchema extends EloquentSchema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), AnimeSynonym::RELATION_ANIME),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), AnimeSynonym::RELATION_ANIME),
+            ]),
+            []
+        );
     }
 
     /**
@@ -61,10 +57,21 @@ class SynonymSchema extends EloquentSchema
         return array_merge(
             parent::fields(),
             [
-                new IdField(AnimeSynonym::ATTRIBUTE_ID),
-                new SynonymTextField(),
-                new SynonymAnimeIdField(),
+                new IdField($this, AnimeSynonym::ATTRIBUTE_ID),
+                new SynonymTextField($this),
+                new SynonymTypeField($this),
+                new SynonymAnimeIdField($this),
             ],
         );
+    }
+
+    /**
+     * Get the model of the schema.
+     *
+     * @return Model
+     */
+    public function model(): Model
+    {
+        return new AnimeSynonym();
     }
 }

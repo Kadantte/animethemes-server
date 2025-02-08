@@ -4,98 +4,22 @@ declare(strict_types=1);
 
 namespace App\Policies\Wiki;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Anime;
+use App\Models\Wiki\ExternalResource;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Studio;
-use App\Pivots\AnimeStudio;
-use App\Pivots\StudioImage;
-use Illuminate\Auth\Access\HandlesAuthorization;
+use App\Pivots\Wiki\AnimeStudio;
+use App\Pivots\Wiki\StudioImage;
+use App\Pivots\Wiki\StudioResource;
+use App\Policies\BasePolicy;
 
 /**
  * Class StudioPolicy.
  */
-class StudioPolicy
+class StudioPolicy extends BasePolicy
 {
-    use HandlesAuthorization;
-
-    /**
-     * Determine whether the user can view any models.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function viewAny(User $user): bool
-    {
-        return $user->can('view studio');
-    }
-
-    /**
-     * Determine whether the user can view the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function view(User $user): bool
-    {
-        return $user->can('view studio');
-    }
-
-    /**
-     * Determine whether the user can create models.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function create(User $user): bool
-    {
-        return $user->can('create studio');
-    }
-
-    /**
-     * Determine whether the user can update the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function update(User $user): bool
-    {
-        return $user->can('update studio');
-    }
-
-    /**
-     * Determine whether the user can delete the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function delete(User $user): bool
-    {
-        return $user->can('delete studio');
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function restore(User $user): bool
-    {
-        return $user->can('restore studio');
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function forceDelete(User $user): bool
-    {
-        return $user->can('force delete studio');
-    }
-
     /**
      * Determine whether the user can attach any anime to the studio.
      *
@@ -104,7 +28,7 @@ class StudioPolicy
      */
     public function attachAnyAnime(User $user): bool
     {
-        return $user->can('update studio');
+        return $user->can(CrudPermission::CREATE->format(Studio::class)) && $user->can(CrudPermission::CREATE->format(Anime::class));
     }
 
     /**
@@ -118,22 +42,24 @@ class StudioPolicy
     public function attachAnime(User $user, Studio $studio, Anime $anime): bool
     {
         $attached = AnimeStudio::query()
-            ->where($anime->getKeyName(), $anime->getKey())
-            ->where($studio->getKeyName(), $studio->getKey())
+            ->where(AnimeStudio::ATTRIBUTE_STUDIO, $studio->getKey())
+            ->where(AnimeStudio::ATTRIBUTE_ANIME, $anime->getKey())
             ->exists();
 
-        return ! $attached && $user->can('update studio');
+        return !$attached
+            && $user->can(CrudPermission::CREATE->format(Studio::class))
+            && $user->can(CrudPermission::CREATE->format(Anime::class));
     }
 
     /**
-     * Determine whether the user can detach an anime from the studio.
+     * Determine whether the user can detach any anime from the studio.
      *
      * @param  User  $user
      * @return bool
      */
-    public function detachAnime(User $user): bool
+    public function detachAnyAnime(User $user): bool
     {
-        return $user->can('update studio');
+        return $user->can(CrudPermission::DELETE->format(Studio::class)) && $user->can(CrudPermission::DELETE->format(Anime::class));
     }
 
     /**
@@ -144,29 +70,38 @@ class StudioPolicy
      */
     public function attachAnyExternalResource(User $user): bool
     {
-        return $user->can('update studio');
+        return $user->can(CrudPermission::CREATE->format(Studio::class)) && $user->can(CrudPermission::CREATE->format(ExternalResource::class));
     }
 
     /**
      * Determine whether the user can attach a resource to the studio.
      *
      * @param  User  $user
+     * @param  Studio  $studio
+     * @param  ExternalResource  $resource
      * @return bool
      */
-    public function attachExternalResource(User $user): bool
+    public function attachExternalResource(User $user, Studio $studio, ExternalResource $resource): bool
     {
-        return $user->can('update studio');
+        $attached = StudioResource::query()
+            ->where(StudioResource::ATTRIBUTE_STUDIO, $studio->getKey())
+            ->where(StudioResource::ATTRIBUTE_RESOURCE, $resource->getKey())
+            ->exists();
+
+        return !$attached
+            && $user->can(CrudPermission::CREATE->format(Studio::class))
+            && $user->can(CrudPermission::CREATE->format(ExternalResource::class));
     }
 
     /**
-     * Determine whether the user can detach a resource from the studio.
+     * Determine whether the user can detach any resource from the studio.
      *
      * @param  User  $user
      * @return bool
      */
-    public function detachExternalResource(User $user): bool
+    public function detachAnyExternalResource(User $user): bool
     {
-        return $user->can('update studio');
+        return $user->can(CrudPermission::DELETE->format(Studio::class)) && $user->can(CrudPermission::DELETE->format(ExternalResource::class));
     }
 
     /**
@@ -177,7 +112,7 @@ class StudioPolicy
      */
     public function attachAnyImage(User $user): bool
     {
-        return $user->can('update studio');
+        return $user->can(CrudPermission::CREATE->format(Studio::class)) && $user->can(CrudPermission::CREATE->format(Image::class));
     }
 
     /**
@@ -191,21 +126,23 @@ class StudioPolicy
     public function attachImage(User $user, Studio $studio, Image $image): bool
     {
         $attached = StudioImage::query()
-            ->where($studio->getKeyName(), $studio->getKey())
-            ->where($image->getKeyName(), $image->getKey())
+            ->where(StudioImage::ATTRIBUTE_STUDIO, $studio->getKey())
+            ->where(StudioImage::ATTRIBUTE_IMAGE, $image->getKey())
             ->exists();
 
-        return ! $attached && $user->can('update studio');
+        return !$attached
+            && $user->can(CrudPermission::CREATE->format(Studio::class))
+            && $user->can(CrudPermission::CREATE->format(Image::class));
     }
 
     /**
-     * Determine whether the user can detach an image from the studio.
+     * Determine whether the user can detach any image from the studio.
      *
      * @param  User  $user
      * @return bool
      */
-    public function detachImage(User $user): bool
+    public function detachAnyImage(User $user): bool
     {
-        return $user->can('update studio');
+        return $user->can(CrudPermission::DELETE->format(Studio::class)) && $user->can(CrudPermission::DELETE->format(Image::class));
     }
 }

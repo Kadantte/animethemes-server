@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Video;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ThemeType;
 use App\Enums\Models\Wiki\VideoOverlap;
@@ -21,21 +23,24 @@ use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Wiki\Video\VideoReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\VideoSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Wiki\Collection\VideoCollection;
 use App\Http\Resources\Wiki\Resource\VideoResource;
 use App\Models\BaseModel;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
+use App\Models\Wiki\Audio;
 use App\Models\Wiki\Video;
-use Carbon\Carbon;
+use App\Models\Wiki\Video\VideoScript;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -43,8 +48,8 @@ use Tests\TestCase;
  */
 class VideoIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Video Index Endpoint shall return a collection of Video Resources.
@@ -62,7 +67,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery()))
+                    new VideoCollection($videos, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -112,6 +117,8 @@ class VideoIndexTest extends TestCase
 
         Video::factory()
             ->count($this->faker->randomDigitNotNull())
+            ->for(Audio::factory())
+            ->has(VideoScript::factory(), Video::RELATION_SCRIPT)
             ->has(
                 AnimeThemeEntry::factory()
                     ->count($this->faker->randomDigitNotNull())
@@ -126,7 +133,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -163,7 +170,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -181,16 +188,17 @@ class VideoIndexTest extends TestCase
     {
         $schema = new VideoSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new VideoReadQuery($parameters);
+        $query = new Query($parameters);
 
         Video::factory()
             ->count($this->faker->randomDigitNotNull())
@@ -198,10 +206,12 @@ class VideoIndexTest extends TestCase
 
         $response = $this->get(route('api.video.index', $parameters));
 
+        $videos = $this->sort(Video::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new VideoCollection($videos, $query)
                         ->response()
                         ->getData()
                 ),
@@ -244,7 +254,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($video, new VideoReadQuery($parameters)))
+                    new VideoCollection($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -287,7 +297,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($video, new VideoReadQuery($parameters)))
+                    new VideoCollection($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -305,7 +315,7 @@ class VideoIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -314,10 +324,7 @@ class VideoIndexTest extends TestCase
 
         Video::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteVideo = Video::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteVideo->each(function (Video $video) {
-            $video->delete();
-        });
+        Video::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $video = Video::withoutTrashed()->get();
 
@@ -326,7 +333,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($video, new VideoReadQuery($parameters)))
+                    new VideoCollection($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -344,7 +351,7 @@ class VideoIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -353,10 +360,7 @@ class VideoIndexTest extends TestCase
 
         Video::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteVideo = Video::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteVideo->each(function (Video $video) {
-            $video->delete();
-        });
+        Video::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $video = Video::withTrashed()->get();
 
@@ -365,7 +369,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($video, new VideoReadQuery($parameters)))
+                    new VideoCollection($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -383,7 +387,7 @@ class VideoIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -392,10 +396,7 @@ class VideoIndexTest extends TestCase
 
         Video::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteVideo = Video::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteVideo->each(function (Video $video) {
-            $video->delete();
-        });
+        Video::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $video = Video::onlyTrashed()->get();
 
@@ -404,7 +405,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($video, new VideoReadQuery($parameters)))
+                    new VideoCollection($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -426,7 +427,7 @@ class VideoIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -434,17 +435,11 @@ class VideoIndexTest extends TestCase
         ];
 
         Carbon::withTestNow($deletedFilter, function () {
-            $videos = Video::factory()->count($this->faker->randomDigitNotNull())->create();
-            $videos->each(function (Video $video) {
-                $video->delete();
-            });
+            Video::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         Carbon::withTestNow($excludedDate, function () {
-            $videos = Video::factory()->count($this->faker->randomDigitNotNull())->create();
-            $videos->each(function (Video $video) {
-                $video->delete();
-            });
+            Video::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         $video = Video::withTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, $deletedFilter)->get();
@@ -454,7 +449,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($video, new VideoReadQuery($parameters)))
+                    new VideoCollection($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -489,7 +484,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -524,7 +519,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -540,11 +535,11 @@ class VideoIndexTest extends TestCase
      */
     public function testOverlapFilter(): void
     {
-        $overlapFilter = VideoOverlap::getRandomInstance();
+        $overlapFilter = Arr::random(VideoOverlap::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Video::ATTRIBUTE_OVERLAP => $overlapFilter->description,
+                Video::ATTRIBUTE_OVERLAP => $overlapFilter->localize(),
             ],
         ];
 
@@ -559,7 +554,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -599,7 +594,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -615,11 +610,11 @@ class VideoIndexTest extends TestCase
      */
     public function testSourceFilter(): void
     {
-        $sourceFilter = VideoSource::getRandomInstance();
+        $sourceFilter = Arr::random(VideoSource::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Video::ATTRIBUTE_SOURCE => $sourceFilter->description,
+                Video::ATTRIBUTE_SOURCE => $sourceFilter->localize(),
             ],
         ];
 
@@ -634,7 +629,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -669,7 +664,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -704,7 +699,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -750,7 +745,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -796,7 +791,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -847,60 +842,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
-                        ->response()
-                        ->getData()
-                ),
-                true
-            )
-        );
-    }
-
-    /**
-     * The Video Index Endpoint shall support constrained eager loading of themes by group.
-     *
-     * @return void
-     */
-    public function testThemesByGroup(): void
-    {
-        $groupFilter = $this->faker->word();
-        $excludedGroup = $this->faker->word();
-
-        $parameters = [
-            FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_GROUP => $groupFilter,
-            ],
-            IncludeParser::param() => Video::RELATION_ANIMETHEME,
-        ];
-
-        Video::factory()
-            ->count($this->faker->randomDigitNotNull())
-            ->has(
-                AnimeThemeEntry::factory()
-                    ->count($this->faker->randomDigitNotNull())
-                    ->for(
-                        AnimeTheme::factory()
-                            ->for(Anime::factory())
-                            ->state([
-                                AnimeTheme::ATTRIBUTE_GROUP => $this->faker->boolean() ? $groupFilter : $excludedGroup,
-                            ])
-                    )
-            )
-            ->create();
-
-        $videos = Video::with([
-            Video::RELATION_ANIMETHEME => function (BelongsTo $query) use ($groupFilter) {
-                $query->where(AnimeTheme::ATTRIBUTE_GROUP, $groupFilter);
-            },
-        ])
-        ->get();
-
-        $response = $this->get(route('api.video.index', $parameters));
-
-        $response->assertJson(
-            json_decode(
-                json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -953,7 +895,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -969,11 +911,11 @@ class VideoIndexTest extends TestCase
      */
     public function testThemesByType(): void
     {
-        $typeFilter = ThemeType::getRandomInstance();
+        $typeFilter = Arr::random(ThemeType::cases());
 
         $parameters = [
             FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->description,
+                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->localize(),
             ],
             IncludeParser::param() => Video::RELATION_ANIMETHEME,
         ];
@@ -999,7 +941,53 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Video Index Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Video::RELATION_ANIME,
+        ];
+
+        Video::factory()
+            ->count($this->faker->randomDigitNotNull())
+            ->has(
+                AnimeThemeEntry::factory()
+                    ->count($this->faker->randomDigitNotNull())
+                    ->for(AnimeTheme::factory()->for(Anime::factory()))
+            )
+            ->create();
+
+        $videos = Video::with([
+            Video::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ])
+        ->get();
+
+        $response = $this->get(route('api.video.index', $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -1015,11 +1003,11 @@ class VideoIndexTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Video::RELATION_ANIME,
         ];
@@ -1045,7 +1033,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -1100,7 +1088,7 @@ class VideoIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoCollection($videos, new VideoReadQuery($parameters)))
+                    new VideoCollection($videos, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

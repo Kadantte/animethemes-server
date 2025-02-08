@@ -4,28 +4,36 @@ declare(strict_types=1);
 
 namespace App\Models\Wiki;
 
+use App\Concerns\Models\Reportable;
+use App\Contracts\Models\HasImages;
+use App\Contracts\Models\HasResources;
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Events\Wiki\Anime\AnimeCreated;
 use App\Events\Wiki\Anime\AnimeDeleted;
 use App\Events\Wiki\Anime\AnimeDeleting;
 use App\Events\Wiki\Anime\AnimeRestored;
 use App\Events\Wiki\Anime\AnimeUpdated;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeImageResource;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeResourceResource;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeSeriesResource;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeStudioResource;
 use App\Models\BaseModel;
+use App\Models\Discord\DiscordThread;
+use App\Models\List\External\ExternalEntry;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use App\Models\Wiki\Anime\AnimeTheme;
-use App\Pivots\AnimeImage;
-use App\Pivots\AnimeResource;
-use App\Pivots\AnimeSeries;
-use App\Pivots\AnimeStudio;
-use App\Pivots\BasePivot;
-use BenSampo\Enum\Enum;
+use App\Pivots\Wiki\AnimeImage;
+use App\Pivots\Wiki\AnimeResource;
+use App\Pivots\Wiki\AnimeSeries;
+use App\Pivots\Wiki\AnimeStudio;
 use Database\Factories\Wiki\AnimeFactory;
-use ElasticScoutDriverPlus\Searchable;
+use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
-use Laravel\Nova\Actions\Actionable;
 
 /**
  * Class Anime.
@@ -33,11 +41,13 @@ use Laravel\Nova\Actions\Actionable;
  * @property int $anime_id
  * @property Collection<int, AnimeSynonym> $animesynonyms
  * @property Collection<int, AnimeTheme> $animethemes
+ * @property DiscordThread|null $discordthread
+ * @property Collection<int, ExternalEntry> $externalentries
  * @property Collection<int, Image> $images
+ * @property AnimeMediaFormat $media_format
  * @property string $name
- * @property BasePivot $pivot
  * @property Collection<int, ExternalResource> $resources
- * @property Enum|null $season
+ * @property AnimeSeason|null $season
  * @property Collection<int, Series> $series
  * @property string $slug
  * @property Collection<int, Studio> $studios
@@ -46,14 +56,15 @@ use Laravel\Nova\Actions\Actionable;
  *
  * @method static AnimeFactory factory(...$parameters)
  */
-class Anime extends BaseModel
+class Anime extends BaseModel implements HasResources, HasImages
 {
-    use Actionable;
+    use Reportable;
     use Searchable;
 
     final public const TABLE = 'anime';
 
     final public const ATTRIBUTE_ID = 'anime_id';
+    final public const ATTRIBUTE_MEDIA_FORMAT = 'media_format';
     final public const ATTRIBUTE_NAME = 'name';
     final public const ATTRIBUTE_SEASON = 'season';
     final public const ATTRIBUTE_SLUG = 'slug';
@@ -61,9 +72,14 @@ class Anime extends BaseModel
     final public const ATTRIBUTE_YEAR = 'year';
 
     final public const RELATION_ARTISTS = 'animethemes.song.artists';
+    final public const RELATION_AUDIO = 'animethemes.animethemeentries.videos.audio';
     final public const RELATION_ENTRIES = 'animethemes.animethemeentries';
+    final public const RELATION_EXTERNAL_ENTRIES = 'externalentries';
+    final public const RELATION_EXTERNAL_PROFILE = 'externalentries.externalprofile';
+    final public const RELATION_GROUPS = 'animethemes.group';
     final public const RELATION_IMAGES = 'images';
     final public const RELATION_RESOURCES = 'resources';
+    final public const RELATION_SCRIPTS = 'animethemes.animethemeentries.videos.videoscript';
     final public const RELATION_SERIES = 'series';
     final public const RELATION_SONG = 'animethemes.song';
     final public const RELATION_STUDIOS = 'studios';
@@ -74,7 +90,7 @@ class Anime extends BaseModel
     /**
      * The attributes that are mass assignable.
      *
-     * @var string[]
+     * @var list<string>
      */
     protected $fillable = [
         Anime::ATTRIBUTE_NAME,
@@ -82,6 +98,7 @@ class Anime extends BaseModel
         Anime::ATTRIBUTE_SLUG,
         Anime::ATTRIBUTE_SYNOPSIS,
         Anime::ATTRIBUTE_YEAR,
+        Anime::ATTRIBUTE_MEDIA_FORMAT
     ];
 
     /**
@@ -150,14 +167,18 @@ class Anime extends BaseModel
     }
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        Anime::ATTRIBUTE_SEASON => AnimeSeason::class,
-        Anime::ATTRIBUTE_YEAR => 'int',
-    ];
+    protected function casts(): array
+    {
+        return [
+            Anime::ATTRIBUTE_SEASON => AnimeSeason::class,
+            Anime::ATTRIBUTE_YEAR => 'int',
+            Anime::ATTRIBUTE_MEDIA_FORMAT => AnimeMediaFormat::class,
+        ];
+    }
 
     /**
      * Get name.
@@ -170,9 +191,19 @@ class Anime extends BaseModel
     }
 
     /**
+     * Get subtitle.
+     *
+     * @return string
+     */
+    public function getSubtitle(): string
+    {
+        return $this->slug;
+    }
+
+    /**
      * Get the synonyms for the anime.
      *
-     * @return HasMany
+     * @return HasMany<AnimeSynonym, $this>
      */
     public function animesynonyms(): HasMany
     {
@@ -180,21 +211,32 @@ class Anime extends BaseModel
     }
 
     /**
+     * Get the discord thread that the anime owns.
+     *
+     * @return HasOne<DiscordThread, $this>
+     */
+    public function discordthread(): HasOne
+    {
+        return $this->hasOne(DiscordThread::class, DiscordThread::ATTRIBUTE_ANIME);
+    }
+
+    /**
      * Get the series the anime is included in.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Series, $this>
      */
     public function series(): BelongsToMany
     {
         return $this->belongsToMany(Series::class, AnimeSeries::TABLE, Anime::ATTRIBUTE_ID, Series::ATTRIBUTE_ID)
             ->using(AnimeSeries::class)
+            ->as(AnimeSeriesResource::$wrap)
             ->withTimestamps();
     }
 
     /**
      * Get the themes for the anime.
      *
-     * @return HasMany
+     * @return HasMany<AnimeTheme, $this>
      */
     public function animethemes(): HasMany
     {
@@ -204,37 +246,50 @@ class Anime extends BaseModel
     /**
      * Get the resources for the anime.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<ExternalResource, $this>
      */
     public function resources(): BelongsToMany
     {
         return $this->belongsToMany(ExternalResource::class, AnimeResource::TABLE, Anime::ATTRIBUTE_ID, ExternalResource::ATTRIBUTE_ID)
             ->using(AnimeResource::class)
             ->withPivot(AnimeResource::ATTRIBUTE_AS)
+            ->as(AnimeResourceResource::$wrap)
             ->withTimestamps();
     }
 
     /**
      * Get the images for the anime.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Image, $this>
      */
     public function images(): BelongsToMany
     {
         return $this->belongsToMany(Image::class, AnimeImage::TABLE, Anime::ATTRIBUTE_ID, Image::ATTRIBUTE_ID)
             ->using(AnimeImage::class)
+            ->as(AnimeImageResource::$wrap)
             ->withTimestamps();
     }
 
     /**
      * Get the studios that produced the anime.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Studio, $this>
      */
     public function studios(): BelongsToMany
     {
         return $this->belongsToMany(Studio::class, AnimeStudio::TABLE, Anime::ATTRIBUTE_ID, Studio::ATTRIBUTE_ID)
             ->using(AnimeStudio::class)
+            ->as(AnimeStudioResource::$wrap)
             ->withTimestamps();
+    }
+
+    /**
+     * Get the entries for the anime.
+     *
+     * @return HasMany<ExternalEntry, $this>
+     */
+    public function externalentries(): HasMany
+    {
+        return $this->hasMany(ExternalEntry::class, ExternalEntry::ATTRIBUTE_ANIME);
     }
 }

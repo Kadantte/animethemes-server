@@ -7,11 +7,12 @@ namespace App\Http\Api\Field\Wiki\Video;
 use App\Contracts\Http\Api\Field\CreatableField;
 use App\Contracts\Http\Api\Field\UpdatableField;
 use App\Enums\Models\Wiki\VideoSource;
-use App\Http\Api\Criteria\Field\Criteria;
 use App\Http\Api\Field\EnumField;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Models\Wiki\Video;
-use BenSampo\Enum\Rules\EnumValue;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rules\Enum;
 
 /**
  * Class VideoSourceField.
@@ -20,10 +21,12 @@ class VideoSourceField extends EnumField implements CreatableField, UpdatableFie
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(Video::ATTRIBUTE_SOURCE, VideoSource::class);
+        parent::__construct($schema, Video::ATTRIBUTE_SOURCE, VideoSource::class);
     }
 
     /**
@@ -37,20 +40,23 @@ class VideoSourceField extends EnumField implements CreatableField, UpdatableFie
         return [
             'sometimes',
             'required',
-            new EnumValue(VideoSource::class),
+            new Enum(VideoSource::class),
         ];
     }
 
     /**
      * Determine if the field should be included in the select clause of our query.
      *
-     * @param  Criteria|null  $criteria
+     * @param  Query  $query
+     * @param  Schema  $schema
      * @return bool
      */
-    public function shouldSelect(?Criteria $criteria): bool
+    public function shouldSelect(Query $query, Schema $schema): bool
     {
+        $tagsField = new VideoTagsField($this->schema);
+
         // The tags attribute is dependent on this field.
-        return parent::shouldSelect($criteria) || $criteria->isAllowedField(Video::ATTRIBUTE_TAGS);
+        return parent::shouldSelect($query, $schema) || $tagsField->shouldRender($query);
     }
 
     /**
@@ -64,7 +70,7 @@ class VideoSourceField extends EnumField implements CreatableField, UpdatableFie
         return [
             'sometimes',
             'required',
-            new EnumValue(VideoSource::class),
+            new Enum(VideoSource::class),
         ];
     }
 }

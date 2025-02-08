@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Api\Criteria\Filter;
 
 use App\Enums\Http\Api\Filter\BinaryLogicalOperator;
+use App\Enums\Http\Api\Filter\Clause;
 use App\Enums\Http\Api\Filter\UnaryLogicalOperator;
 use App\Http\Api\Filter\Filter;
-use App\Http\Api\Query\ReadQuery;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Http\Api\Scope\Scope;
-use BenSampo\Enum\Exceptions\InvalidEnumKeyException;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * Class WhereInCriteria.
@@ -57,7 +58,7 @@ class WhereInCriteria extends Criteria
     public static function make(Scope $scope, string $filterParam, mixed $filterValues): static
     {
         $field = '';
-        $operator = BinaryLogicalOperator::AND();
+        $operator = BinaryLogicalOperator::AND;
         $not = false;
 
         $filterParts = Str::of($filterParam)->explode(Criteria::PARAM_SEPARATOR);
@@ -65,18 +66,14 @@ class WhereInCriteria extends Criteria
             $filterPart = $filterParts->pop();
 
             // Set Not
-            if (empty($field) && UnaryLogicalOperator::hasKey(Str::upper($filterPart))) {
+            if (empty($field) && UnaryLogicalOperator::unstrictCoerce($filterPart) !== null) {
                 $not = true;
                 continue;
             }
 
             // Set operator
-            if (empty($field) && BinaryLogicalOperator::hasKey(Str::upper($filterPart))) {
-                try {
-                    $operator = BinaryLogicalOperator::fromKey(Str::upper($filterPart));
-                } catch (InvalidEnumKeyException $e) {
-                    Log::error($e->getMessage());
-                }
+            if (empty($field) && BinaryLogicalOperator::unstrictCoerce($filterPart) !== null) {
+                $operator = BinaryLogicalOperator::unstrictCoerce($filterPart);
                 continue;
             }
 
@@ -101,16 +98,24 @@ class WhereInCriteria extends Criteria
      *
      * @param  Builder  $builder
      * @param  Filter  $filter
-     * @param  ReadQuery  $query
+     * @param  Query  $query
+     * @param  Schema  $schema
      * @return Builder
      */
-    public function filter(Builder $builder, Filter $filter, ReadQuery $query): Builder
+    public function filter(Builder $builder, Filter $filter, Query $query, Schema $schema): Builder
     {
-        return $builder->whereIn(
-            $builder->qualifyColumn($filter->getColumn()),
-            $filter->getFilterValues($this->getFilterValues()),
-            $this->getLogicalOperator()->value,
-            $this->not()
-        );
+        $column = $filter->shouldQualifyColumn()
+            ? $builder->qualifyColumn($filter->getColumn())
+            : $filter->getColumn();
+
+        return match ($filter->clause()) {
+            Clause::WHERE => $builder->whereIn(
+                $column,
+                $filter->getFilterValues($this->getFilterValues()),
+                $this->getLogicalOperator()->value,
+                $this->not()
+            ),
+            Clause::HAVING => throw new RuntimeException('IN operator is not supported in HAVING clause'),
+        };
     }
 }

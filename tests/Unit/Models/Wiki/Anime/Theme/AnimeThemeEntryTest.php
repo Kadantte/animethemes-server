@@ -8,11 +8,10 @@ use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
 use App\Models\Wiki\Video;
-use App\Pivots\AnimeThemeEntryVideo;
+use App\Pivots\Wiki\AnimeThemeEntryVideo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 use Znck\Eloquent\Relations\BelongsToThrough;
 
@@ -52,22 +51,6 @@ class AnimeThemeEntryTest extends TestCase
     }
 
     /**
-     * Entries shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $entry = AnimeThemeEntry::factory()
-            ->for(AnimeTheme::factory()->for(Anime::factory()))
-            ->createOne();
-
-        static::assertEquals(1, $entry->audits()->count());
-    }
-
-    /**
      * Entries shall be nameable.
      *
      * @return void
@@ -79,6 +62,20 @@ class AnimeThemeEntryTest extends TestCase
             ->createOne();
 
         static::assertIsString($entry->getName());
+    }
+
+    /**
+     * Entries shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $entry = AnimeThemeEntry::factory()
+            ->for(AnimeTheme::factory()->for(Anime::factory()))
+            ->createOne();
+
+        static::assertIsString($entry->getSubtitle());
     }
 
     /**

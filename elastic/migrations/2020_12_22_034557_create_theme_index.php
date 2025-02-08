@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use ElasticAdapter\Indices\Mapping;
-use ElasticMigrations\Facades\Index;
-use ElasticMigrations\MigrationInterface;
+use Elastic\Adapter\Indices\Mapping;
+use Elastic\Migrations\Facades\Index;
+use Elastic\Migrations\MigrationInterface;
 
 /**
  * Class CreateThemeIndex.
@@ -51,6 +51,9 @@ final class CreateThemeIndex implements MigrationInterface
                                 'type' => 'text',
                                 'copy_to' => ['synonym_slug'],
                             ],
+                            'type' => [
+                                'type' => 'long',
+                            ],
                             'updated_at' => [
                                 'type' => 'date',
                             ],
@@ -70,13 +73,26 @@ final class CreateThemeIndex implements MigrationInterface
             $mapping->long('anime_id');
             $mapping->text('anime_slug');
             $mapping->date('created_at');
-            $mapping->text('group', [
-                'fields' => [
-                    'keyword' => [
-                        'type' => 'keyword',
+            $mapping->nested('group', [
+                'properties' => [
+                    'created_at' => [
+                        'type' => 'date',
+                    ],
+                    'group_id' => [
+                        'type' => 'long',
+                    ],
+                    'name' => [
+                        'type' => 'text',
+                    ],
+                    'slug' => [
+                        'type' => 'text',
+                    ],
+                    'updated_at' => [
+                        'type' => 'date',
                     ],
                 ],
             ]);
+            $mapping->long('group_id');
             $mapping->long('sequence');
             $mapping->text('slug', [
                 'copy_to' => [

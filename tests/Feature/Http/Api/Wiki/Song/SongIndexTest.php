@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Song;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ThemeType;
 use App\Http\Api\Criteria\Filter\TrashedCriteria;
@@ -19,8 +21,9 @@ use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Wiki\Song\SongReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\SongSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Wiki\Collection\SongCollection;
 use App\Http\Resources\Wiki\Resource\SongResource;
 use App\Models\BaseModel;
@@ -28,12 +31,12 @@ use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Artist;
 use App\Models\Wiki\Song;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -41,8 +44,8 @@ use Tests\TestCase;
  */
 class SongIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Song Index Endpoint shall return a collection of Song Resources.
@@ -58,7 +61,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery()))
+                    new SongCollection($songs, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -117,7 +120,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
+                    new SongCollection($songs, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -152,7 +155,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
+                    new SongCollection($songs, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -170,25 +173,28 @@ class SongIndexTest extends TestCase
     {
         $schema = new SongSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new SongReadQuery($parameters);
+        $query = new Query($parameters);
 
         Song::factory()->count($this->faker->randomDigitNotNull())->create();
 
         $response = $this->get(route('api.song.index', $parameters));
 
+        $songs = $this->sort(Song::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new SongCollection($songs, $query)
                         ->response()
                         ->getData()
                 ),
@@ -231,7 +237,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($song, new SongReadQuery($parameters)))
+                    new SongCollection($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -274,7 +280,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($song, new SongReadQuery($parameters)))
+                    new SongCollection($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -292,7 +298,7 @@ class SongIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -301,10 +307,7 @@ class SongIndexTest extends TestCase
 
         Song::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteSong = Song::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteSong->each(function (Song $song) {
-            $song->delete();
-        });
+        Song::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $song = Song::withoutTrashed()->get();
 
@@ -313,7 +316,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($song, new SongReadQuery($parameters)))
+                    new SongCollection($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -331,7 +334,7 @@ class SongIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -340,10 +343,7 @@ class SongIndexTest extends TestCase
 
         Song::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteSong = Song::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteSong->each(function (Song $song) {
-            $song->delete();
-        });
+        Song::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $song = Song::withTrashed()->get();
 
@@ -352,7 +352,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($song, new SongReadQuery($parameters)))
+                    new SongCollection($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -370,7 +370,7 @@ class SongIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -379,10 +379,7 @@ class SongIndexTest extends TestCase
 
         Song::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteSong = Song::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteSong->each(function (Song $song) {
-            $song->delete();
-        });
+        Song::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $song = Song::onlyTrashed()->get();
 
@@ -391,7 +388,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($song, new SongReadQuery($parameters)))
+                    new SongCollection($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -413,7 +410,7 @@ class SongIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -421,17 +418,11 @@ class SongIndexTest extends TestCase
         ];
 
         Carbon::withTestNow($deletedFilter, function () {
-            $songs = Song::factory()->count($this->faker->randomDigitNotNull())->create();
-            $songs->each(function (Song $song) {
-                $song->delete();
-            });
+            Song::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         Carbon::withTestNow($excludedDate, function () {
-            $songs = Song::factory()->count($this->faker->randomDigitNotNull())->create();
-            $songs->each(function (Song $song) {
-                $song->delete();
-            });
+            Song::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         $songs = Song::withTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, $deletedFilter)->get();
@@ -441,58 +432,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
-                        ->response()
-                        ->getData()
-                ),
-                true
-            )
-        );
-    }
-
-    /**
-     * The Song Index Endpoint shall support constrained eager loading of themes by group.
-     *
-     * @return void
-     */
-    public function testThemesByGroup(): void
-    {
-        $groupFilter = $this->faker->word();
-        $excludedGroup = $this->faker->word();
-
-        $parameters = [
-            FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_GROUP => $groupFilter,
-            ],
-            IncludeParser::param() => Song::RELATION_ANIMETHEMES,
-        ];
-
-        Song::factory()
-            ->has(
-                AnimeTheme::factory()
-                    ->count($this->faker->randomDigitNotNull())
-                    ->for(Anime::factory())
-                    ->state(new Sequence(
-                        [AnimeTheme::ATTRIBUTE_GROUP => $groupFilter],
-                        [AnimeTheme::ATTRIBUTE_GROUP => $excludedGroup],
-                    ))
-            )
-            ->count($this->faker->randomDigitNotNull())
-            ->create();
-
-        $songs = Song::with([
-            Song::RELATION_ANIMETHEMES => function (HasMany $query) use ($groupFilter) {
-                $query->where(AnimeTheme::ATTRIBUTE_GROUP, $groupFilter);
-            },
-        ])
-        ->get();
-
-        $response = $this->get(route('api.song.index', $parameters));
-
-        $response->assertJson(
-            json_decode(
-                json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
+                    new SongCollection($songs, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -543,7 +483,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
+                    new SongCollection($songs, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -559,11 +499,11 @@ class SongIndexTest extends TestCase
      */
     public function testThemesByType(): void
     {
-        $typeFilter = ThemeType::getRandomInstance();
+        $typeFilter = Arr::random(ThemeType::cases());
 
         $parameters = [
             FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->description,
+                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->localize(),
             ],
             IncludeParser::param() => Song::RELATION_ANIMETHEMES,
         ];
@@ -585,7 +525,49 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
+                    new SongCollection($songs, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Song Index Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Song::RELATION_ANIME,
+        ];
+
+        Song::factory()
+            ->has(AnimeTheme::factory()->count($this->faker->randomDigitNotNull())->for(Anime::factory()))
+            ->count($this->faker->randomDigitNotNull())
+            ->create();
+
+        $songs = Song::with([
+            Song::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ])
+        ->get();
+
+        $response = $this->get(route('api.song.index', $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new SongCollection($songs, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -601,11 +583,11 @@ class SongIndexTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Song::RELATION_ANIME,
         ];
@@ -627,7 +609,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
+                    new SongCollection($songs, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -679,7 +661,7 @@ class SongIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongCollection($songs, new SongReadQuery($parameters)))
+                    new SongCollection($songs, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

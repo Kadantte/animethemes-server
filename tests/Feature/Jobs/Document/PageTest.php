@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Jobs\Document;
 
-use App\Constants\Config\FlagConstants;
+use App\Constants\FeatureConstants;
+use App\Events\Document\Page\PageCreated;
+use App\Events\Document\Page\PageDeleted;
+use App\Events\Document\Page\PageRestored;
+use App\Events\Document\Page\PageUpdated;
 use App\Jobs\SendDiscordNotificationJob;
 use App\Models\Document\Page;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
+use Laravel\Pennant\Feature;
 use Tests\TestCase;
 
 /**
@@ -23,8 +28,9 @@ class PageTest extends TestCase
      */
     public function testPageCreatedSendsDiscordNotification(): void
     {
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(PageCreated::class);
 
         Page::factory()->createOne();
 
@@ -40,8 +46,9 @@ class PageTest extends TestCase
     {
         $page = Page::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(PageDeleted::class);
 
         $page->delete();
 
@@ -57,8 +64,9 @@ class PageTest extends TestCase
     {
         $page = Page::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(PageRestored::class);
 
         $page->restore();
 
@@ -74,8 +82,9 @@ class PageTest extends TestCase
     {
         $page = Page::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(PageUpdated::class);
 
         $changes = Page::factory()->makeOne();
 

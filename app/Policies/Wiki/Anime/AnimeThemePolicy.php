@@ -4,90 +4,24 @@ declare(strict_types=1);
 
 namespace App\Policies\Wiki\Anime;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
-use Illuminate\Auth\Access\HandlesAuthorization;
+use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
+use App\Policies\BasePolicy;
 
 /**
  * Class AnimeThemePolicy.
  */
-class AnimeThemePolicy
+class AnimeThemePolicy extends BasePolicy
 {
-    use HandlesAuthorization;
-
     /**
-     * Determine whether the user can view any models.
+     * Determine whether the user can add a entry to the theme.
      *
      * @param  User  $user
      * @return bool
      */
-    public function viewAny(User $user): bool
+    public function addAnyAnimeThemeEntry(User $user): bool
     {
-        return $user->can('view anime theme');
-    }
-
-    /**
-     * Determine whether the user can view the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function view(User $user): bool
-    {
-        return $user->can('view anime theme');
-    }
-
-    /**
-     * Determine whether the user can create models.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function create(User $user): bool
-    {
-        return $user->can('create anime theme');
-    }
-
-    /**
-     * Determine whether the user can update the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function update(User $user): bool
-    {
-        return $user->can('update anime theme');
-    }
-
-    /**
-     * Determine whether the user can delete the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function delete(User $user): bool
-    {
-        return $user->can('delete anime theme');
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function restore(User $user): bool
-    {
-        return $user->can('restore anime theme');
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function forceDelete(User $user): bool
-    {
-        return $user->can('force delete anime theme');
+        return $user->can(CrudPermission::UPDATE->format(AnimeThemeEntry::class));
     }
 }

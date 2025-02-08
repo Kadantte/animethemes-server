@@ -7,6 +7,7 @@ namespace App\Http\Api\Field\Document\Page;
 use App\Contracts\Http\Api\Field\CreatableField;
 use App\Contracts\Http\Api\Field\UpdatableField;
 use App\Http\Api\Field\StringField;
+use App\Http\Api\Schema\Schema;
 use App\Models\Document\Page;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,10 +19,12 @@ class PageSlugField extends StringField implements CreatableField, UpdatableFiel
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(Page::ATTRIBUTE_SLUG);
+        parent::__construct($schema, Page::ATTRIBUTE_SLUG);
     }
 
     /**
@@ -36,7 +39,7 @@ class PageSlugField extends StringField implements CreatableField, UpdatableFiel
             'required',
             'max:192',
             'regex:/^[\pL\pM\pN\/_-]+$/u',
-            Rule::unique(Page::TABLE),
+            Rule::unique(Page::class),
         ];
     }
 
@@ -53,7 +56,7 @@ class PageSlugField extends StringField implements CreatableField, UpdatableFiel
             'required',
             'max:192',
             'regex:/^[\pL\pM\pN\/_-]+$/u',
-            Rule::unique(Page::TABLE)->ignore($request->route('page'), Page::ATTRIBUTE_ID),
+            Rule::unique(Page::class)->ignore($request->route('page'), Page::ATTRIBUTE_ID),
         ];
     }
 }

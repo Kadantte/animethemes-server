@@ -7,7 +7,8 @@ namespace App\Http\Api\Criteria\Filter;
 use App\Enums\Http\Api\Filter\BinaryLogicalOperator;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Http\Api\Filter\Filter;
-use App\Http\Api\Query\ReadQuery;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Http\Api\Scope\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
@@ -48,7 +49,7 @@ class TrashedCriteria extends Criteria
 
         return new static(
             new Predicate(TrashedCriteria::PARAM_VALUE, null, $expression),
-            BinaryLogicalOperator::AND(),
+            BinaryLogicalOperator::AND,
             $scope
         );
     }
@@ -58,18 +59,19 @@ class TrashedCriteria extends Criteria
      *
      * @param  Builder  $builder
      * @param  Filter  $filter
-     * @param  ReadQuery  $query
+     * @param  Query  $query
+     * @param  Schema  $schema
      * @return Builder
      */
-    public function filter(Builder $builder, Filter $filter, ReadQuery $query): Builder
+    public function filter(Builder $builder, Filter $filter, Query $query, Schema $schema): Builder
     {
         $filterValues = $filter->getFilterValues($this->getFilterValues());
 
         foreach ($filterValues as $filterValue) {
             $builder = match (Str::lower($filterValue)) {
-                TrashedStatus::WITH => $builder->withTrashed(),
-                TrashedStatus::WITHOUT => $builder->withoutTrashed(),
-                TrashedStatus::ONLY => $builder->onlyTrashed(),
+                TrashedStatus::WITH->value => $builder->withTrashed(),
+                TrashedStatus::WITHOUT->value => $builder->withoutTrashed(),
+                TrashedStatus::ONLY->value => $builder->onlyTrashed(),
                 default => $builder,
             };
         }

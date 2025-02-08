@@ -4,126 +4,142 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki\Anime;
 
-use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Anime\Synonym\SynonymDestroyRequest;
-use App\Http\Requests\Api\Wiki\Anime\Synonym\SynonymForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Anime\Synonym\SynonymIndexRequest;
-use App\Http\Requests\Api\Wiki\Anime\Synonym\SynonymRestoreRequest;
-use App\Http\Requests\Api\Wiki\Anime\Synonym\SynonymShowRequest;
-use App\Http\Requests\Api\Wiki\Anime\Synonym\SynonymStoreRequest;
-use App\Http\Requests\Api\Wiki\Anime\Synonym\SynonymUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Anime\Collection\SynonymCollection;
+use App\Http\Resources\Wiki\Anime\Resource\SynonymResource;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class SynonymController.
  */
-class SynonymController extends Controller
+class SynonymController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(AnimeSynonym::class, 'animesynonym');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  SynonymIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return SynonymCollection
      */
-    #[Route(fullUri: 'animesynonym', name: 'animesynonym.index')]
-    public function index(SynonymIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): SynonymCollection
     {
-        $query = $request->getQuery();
+        $query = new Query($request->validated());
 
-        if ($query->hasSearchCriteria()) {
-            return $query->search(PaginationStrategy::OFFSET())->toResponse($request);
-        }
+        $synonyms = $query->hasSearchCriteria()
+            ? $action->search($query, $request->schema())
+            : $action->index(AnimeSynonym::query(), $query, $request->schema());
 
-        return $query->index()->toResponse($request);
+        return new SynonymCollection($synonyms, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  SynonymStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return SynonymResource
      */
-    #[Route(fullUri: 'animesynonym', name: 'animesynonym.store', middleware: 'auth:sanctum')]
-    public function store(SynonymStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): SynonymResource
     {
-        $resource = $request->getQuery()->store();
+        $synonym = $action->store(AnimeSynonym::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new SynonymResource($synonym, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  SynonymShowRequest  $request
-     * @param  AnimeSynonym  $synonym
-     * @return JsonResponse
+     * @param  ShowRequest  $request
+     * @param  AnimeSynonym  $animesynonym
+     * @param  ShowAction  $action
+     * @return SynonymResource
      */
-    #[Route(fullUri: 'animesynonym/{animesynonym}', name: 'animesynonym.show')]
-    public function show(SynonymShowRequest $request, AnimeSynonym $synonym): JsonResponse
+    public function show(ShowRequest $request, AnimeSynonym $animesynonym, ShowAction $action): SynonymResource
     {
-        $resource = $request->getQuery()->show($synonym);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($animesynonym, $query, $request->schema());
+
+        return new SynonymResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  SynonymUpdateRequest  $request
-     * @param  AnimeSynonym  $synonym
-     * @return JsonResponse
+     * @param  UpdateRequest  $request
+     * @param  AnimeSynonym  $animesynonym
+     * @param  UpdateAction  $action
+     * @return SynonymResource
      */
-    #[Route(fullUri: 'animesynonym/{animesynonym}', name: 'animesynonym.update', middleware: 'auth:sanctum')]
-    public function update(SynonymUpdateRequest $request, AnimeSynonym $synonym): JsonResponse
+    public function update(UpdateRequest $request, AnimeSynonym $animesynonym, UpdateAction $action): SynonymResource
     {
-        $resource = $request->getQuery()->update($synonym);
+        $updated = $action->update($animesynonym, $request->validated());
 
-        return $resource->toResponse($request);
+        return new SynonymResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  SynonymDestroyRequest  $request
-     * @param  AnimeSynonym  $synonym
-     * @return JsonResponse
+     * @param  AnimeSynonym  $animesynonym
+     * @param  DestroyAction  $action
+     * @return SynonymResource
      */
-    #[Route(fullUri: 'animesynonym/{animesynonym}', name: 'animesynonym.destroy', middleware: 'auth:sanctum')]
-    public function destroy(SynonymDestroyRequest $request, AnimeSynonym $synonym): JsonResponse
+    public function destroy(AnimeSynonym $animesynonym, DestroyAction $action): SynonymResource
     {
-        $resource = $request->getQuery()->destroy($synonym);
+        $deleted = $action->destroy($animesynonym);
 
-        return $resource->toResponse($request);
+        return new SynonymResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  SynonymRestoreRequest  $request
-     * @param  AnimeSynonym  $synonym
-     * @return JsonResponse
+     * @param  AnimeSynonym  $animesynonym
+     * @param  RestoreAction  $action
+     * @return SynonymResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/animesynonym/{animesynonym}', name: 'animesynonym.restore', middleware: 'auth:sanctum')]
-    public function restore(SynonymRestoreRequest $request, AnimeSynonym $synonym): JsonResponse
+    public function restore(AnimeSynonym $animesynonym, RestoreAction $action): SynonymResource
     {
-        $resource = $request->getQuery()->restore($synonym);
+        $restored = $action->restore($animesynonym);
 
-        return $resource->toResponse($request);
+        return new SynonymResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  SynonymForceDeleteRequest  $request
-     * @param  AnimeSynonym  $synonym
+     * @param  AnimeSynonym  $animesynonym
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/animesynonym/{animesynonym}', name: 'animesynonym.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(SynonymForceDeleteRequest $request, AnimeSynonym $synonym): JsonResponse
+    public function forceDelete(AnimeSynonym $animesynonym, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($synonym);
+        $message = $action->forceDelete($animesynonym);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

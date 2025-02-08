@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Jobs\Wiki\Anime;
 
-use App\Constants\Config\FlagConstants;
+use App\Constants\FeatureConstants;
+use App\Events\Wiki\Anime\Theme\ThemeCreated;
+use App\Events\Wiki\Anime\Theme\ThemeDeleted;
+use App\Events\Wiki\Anime\Theme\ThemeRestored;
+use App\Events\Wiki\Anime\Theme\ThemeUpdated;
 use App\Jobs\SendDiscordNotificationJob;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
+use Laravel\Pennant\Feature;
 use Tests\TestCase;
 
 /**
@@ -26,8 +31,9 @@ class ThemeTest extends TestCase
     {
         $anime = Anime::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(ThemeCreated::class);
 
         AnimeTheme::factory()->for($anime)->createOne();
 
@@ -45,8 +51,9 @@ class ThemeTest extends TestCase
             ->for(Anime::factory())
             ->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(ThemeDeleted::class);
 
         $theme->delete();
 
@@ -64,8 +71,9 @@ class ThemeTest extends TestCase
             ->for(Anime::factory())
             ->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(ThemeRestored::class);
 
         $theme->restore();
 
@@ -87,8 +95,9 @@ class ThemeTest extends TestCase
             ->for(Anime::factory())
             ->makeOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(ThemeUpdated::class);
 
         $theme->fill($changes->getAttributes());
         $theme->save();

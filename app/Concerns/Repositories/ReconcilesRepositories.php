@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Concerns\Repositories;
 
-use App\Contracts\Repositories\Repository;
-use App\Models\BaseModel;
-use Closure;
+use App\Actions\ActionResult;
+use App\Actions\Repositories\ReconcileRepositoriesAction;
+use App\Contracts\Repositories\RepositoryInterface;
+use App\Enums\Actions\ActionStatus;
 use Exception;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Collection;
 
 /**
  * Trait ReconcilesRepositories.
@@ -17,325 +16,74 @@ use Illuminate\Support\Collection;
 trait ReconcilesRepositories
 {
     /**
-     * The number of models created.
+     * Reconcile repositories.
      *
-     * @var int
-     */
-    protected int $created = 0;
-
-    /**
-     * The number of models whose creation failed.
+     * @param  array  $data
+     * @return ActionResult
      *
-     * @var int
+     * @throws Exception
      */
-    protected int $createdFailed = 0;
-
-    /**
-     * The number of models deleted.
-     *
-     * @var int
-     */
-    protected int $deleted = 0;
-
-    /**
-     * The number of models whose deletion failed.
-     *
-     * @var int
-     */
-    protected int $deletedFailed = 0;
-
-    /**
-     * The number of models updated.
-     *
-     * @var int
-     */
-    protected int $updated = 0;
-
-    /**
-     * The number of models whose update failed.
-     *
-     * @var int
-     */
-    protected int $updatedFailed = 0;
-
-    /**
-     * Callback for successful model creation.
-     *
-     * @param  BaseModel  $model
-     * @return void
-     */
-    protected function handleCreated(BaseModel $model): void
+    protected function reconcileRepositories(array $data = []): ActionResult
     {
-        //
-    }
-
-    /**
-     * Callback for failed model creation.
-     *
-     * @param  BaseModel  $model
-     * @return void
-     */
-    protected function handleFailedCreation(BaseModel $model): void
-    {
-        //
-    }
-
-    /**
-     * Callback for successful model deletion.
-     *
-     * @param  BaseModel  $model
-     * @return void
-     */
-    protected function handleDeleted(BaseModel $model): void
-    {
-        //
-    }
-
-    /**
-     * Callback for failed model deletion.
-     *
-     * @param  BaseModel  $model
-     * @return void
-     */
-    protected function handleFailedDeletion(BaseModel $model): void
-    {
-        //
-    }
-
-    /**
-     * Callback for successful model update.
-     *
-     * @param  BaseModel  $model
-     * @return void
-     */
-    protected function handleUpdated(BaseModel $model): void
-    {
-        //
-    }
-
-    /**
-     * Callback for failed model update.
-     *
-     * @param  BaseModel  $model
-     * @return void
-     */
-    protected function handleFailedUpdate(BaseModel $model): void
-    {
-        //
-    }
-
-    /**
-     * Callback for exception.
-     *
-     * @param  Exception  $exception
-     * @return void
-     */
-    protected function handleException(Exception $exception): void
-    {
-        //
-    }
-
-    /**
-     * Callback for handling completion of reconciliation.
-     *
-     * @return void
-     */
-    protected function postReconciliationTask(): void
-    {
-        //
-    }
-
-    /**
-     * Determines if any changes, successful or not, were made during reconciliation.
-     *
-     * @return bool
-     */
-    protected function hasResults(): bool
-    {
-        return $this->hasChanges() || $this->hasFailures();
-    }
-
-    /**
-     * Determines if any successful changes were made during reconciliation.
-     *
-     * @return bool
-     */
-    protected function hasChanges(): bool
-    {
-        return $this->created > 0 || $this->deleted > 0 || $this->updated > 0;
-    }
-
-    /**
-     * Determines if any unsuccessful changes were made during reconciliation.
-     *
-     * @return bool
-     */
-    protected function hasFailures(): bool
-    {
-        return $this->createdFailed > 0 || $this->deletedFailed > 0 || $this->updatedFailed > 0;
-    }
-
-    /**
-     * Perform set reconciliation between source and destination repositories.
-     *
-     * @param  Repository  $source
-     * @param  Repository  $destination
-     * @return void
-     */
-    public function reconcileRepositories(Repository $source, Repository $destination): void
-    {
-        try {
-            $sourceModels = $source->get();
-
-            $destinationModels = $destination->get($this->columnsForCreateDelete());
-
-            $this->createModelsFromSource($destination, $sourceModels, $destinationModels);
-
-            $this->deleteModelsFromDestination($destination, $sourceModels, $destinationModels);
-
-            $destinationModels = $destination->get($this->columnsForUpdate());
-
-            $this->updateDestinationModels($destination, $sourceModels, $destinationModels);
-        } catch (Exception $exception) {
-            $this->handleException($exception);
-        } finally {
-            $this->postReconciliationTask();
+        $sourceRepository = $this->getSourceRepository($data);
+        if ($sourceRepository === null) {
+            return new ActionResult(
+                ActionStatus::FAILED,
+                'Could not find source repository'
+            );
         }
+
+        $destinationRepository = $this->getDestinationRepository($data);
+        if ($destinationRepository === null) {
+            return new ActionResult(
+                ActionStatus::FAILED,
+                'Could not find destination repository'
+            );
+        }
+
+        $this->handleFilters($sourceRepository, $destinationRepository, $data);
+
+        $action = $this->reconcileAction();
+
+        return $action->reconcileRepositories($sourceRepository, $destinationRepository);
     }
 
     /**
-     * The columns used for create and delete set operations.
+     * Get the reconcile action.
      *
-     * @return string[]
+     * @return ReconcileRepositoriesAction
      */
-    protected function columnsForCreateDelete(): array
-    {
-        return ['*'];
-    }
+    abstract protected function reconcileAction(): ReconcileRepositoriesAction;
 
     /**
-     * Callback for create and delete set operation item comparison.
+     * Get source repository.
      *
-     * @return Closure
+     * @param  array  $data
+     * @return RepositoryInterface|null
      */
-    protected function diffCallbackForCreateDelete(): Closure
-    {
-        return fn () => 0;
-    }
+    abstract protected function getSourceRepository(array $data = []): ?RepositoryInterface;
 
     /**
-     * Create models that exist in source but not in destination.
+     * Get destination repository.
      *
-     * @param  Repository  $destination
-     * @param  Collection  $sourceModels
-     * @param  Collection  $destinationModels
+     * @param  array  $data
+     * @return RepositoryInterface|null
+     */
+    abstract protected function getDestinationRepository(array $data = []): ?RepositoryInterface;
+
+    /**
+     * Apply filters to repositories before reconciliation.
+     *
+     * @param  RepositoryInterface  $sourceRepository
+     * @param  RepositoryInterface  $destinationRepository
+     * @param  array  $data
      * @return void
      */
-    protected function createModelsFromSource(
-        Repository $destination,
-        Collection $sourceModels,
-        Collection $destinationModels
+    protected function handleFilters(
+        RepositoryInterface $sourceRepository,
+        RepositoryInterface $destinationRepository,
+        array $data = []
     ): void {
-        $createModels = $sourceModels->diffUsing($destinationModels, $this->diffCallbackForCreateDelete());
-
-        foreach ($createModels as $createModel) {
-            $createResult = $destination->save($createModel);
-            if ($createResult) {
-                $this->created++;
-                $this->handleCreated($createModel);
-            } else {
-                $this->createdFailed++;
-                $this->handleFailedCreation($createModel);
-            }
-        }
-    }
-
-    /**
-     * Delete models that exist in destination but not in source.
-     *
-     * @param  Repository  $destination
-     * @param  Collection  $sourceModels
-     * @param  Collection  $destinationModels
-     * @return void
-     */
-    protected function deleteModelsFromDestination(
-        Repository $destination,
-        Collection $sourceModels,
-        Collection $destinationModels
-    ): void {
-        $deleteModels = $destinationModels->diffUsing($sourceModels, $this->diffCallbackForCreateDelete());
-
-        foreach ($deleteModels as $deleteModel) {
-            $deleteResult = $destination->delete($deleteModel);
-            if ($deleteResult) {
-                $this->deleted++;
-                $this->handleDeleted($deleteModel);
-            } else {
-                $this->deletedFailed++;
-                $this->handleFailedDeletion($deleteModel);
-            }
-        }
-    }
-
-    /**
-     * The columns used for update set operation.
-     *
-     * @return string[]
-     */
-    protected function columnsForUpdate(): array
-    {
-        return ['*'];
-    }
-
-    /**
-     * Callback for update set operation item comparison.
-     *
-     * @return Closure
-     */
-    protected function diffCallbackForUpdate(): Closure
-    {
-        return fn () => 0;
-    }
-
-    /**
-     * Get source model that has been updated for destination model.
-     *
-     * @param  Collection  $sourceModels
-     * @param  Model  $destinationModel
-     * @return Model|null
-     */
-    protected function resolveUpdatedModel(Collection $sourceModels, Model $destinationModel): ?Model
-    {
-        return null;
-    }
-
-    /**
-     * Update destination models that have changed in source.
-     *
-     * @param  Repository  $destination
-     * @param  Collection  $sourceModels
-     * @param  Collection  $destinationModels
-     * @return void
-     */
-    protected function updateDestinationModels(
-        Repository $destination,
-        Collection $sourceModels,
-        Collection $destinationModels
-    ): void {
-        $updatedModels = $destinationModels->diffUsing($sourceModels, $this->diffCallbackForUpdate());
-
-        foreach ($updatedModels as $updatedModel) {
-            $sourceModel = $this->resolveUpdatedModel($sourceModels, $updatedModel);
-            if ($sourceModel !== null) {
-                $updateResult = $destination->update($updatedModel, $sourceModel->toArray());
-                if ($updateResult) {
-                    $this->updated++;
-                    $this->handleUpdated($updatedModel);
-                } else {
-                    $this->updatedFailed++;
-                    $this->handleFailedUpdate($updatedModel);
-                }
-            }
-        }
+        // Not supported by default
     }
 }

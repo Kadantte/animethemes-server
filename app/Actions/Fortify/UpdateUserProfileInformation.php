@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Fortify;
 
 use App\Models\Auth\User;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Rules\ModerationRule;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -20,49 +20,28 @@ class UpdateUserProfileInformation implements UpdatesUserProfileInformation
     /**
      * Validate and update the given user's profile information.
      *
-     * @param  mixed  $user
-     * @param  array  $input
+     * @param  User  $user
+     * @param  array<string, string>  $input
      * @return void
      *
      * @throws ValidationException
      */
-    public function update(mixed $user, array $input): void
+    public function update(User $user, array $input): void
     {
-        Validator::make($input, [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique(User::TABLE)->ignore($user->id)],
-            'photo' => ['nullable', 'mimes:jpg,jpeg,png', 'max:1024'],
-        ])->validateWithBag('updateProfileInformation');
+        $validated = Validator::make($input, [
+            User::ATTRIBUTE_NAME => ['required_without:'.User::ATTRIBUTE_EMAIL, 'string', 'max:255', 'alpha_dash', Rule::unique(User::class)->ignore($user->id), new ModerationRule()],
+            User::ATTRIBUTE_EMAIL => ['required_without:'.User::ATTRIBUTE_NAME, 'string', 'email', 'max:255', 'indisposable', Rule::unique(User::class)->ignore($user->id)],
+        ])->validate();
 
-        if (isset($input['photo'])) {
-            $user->updateProfilePhoto($input['photo']);
-        }
+        $email = Arr::get($validated, User::ATTRIBUTE_EMAIL);
+        if (Arr::has($validated, User::ATTRIBUTE_EMAIL) && $email !== $user->email) {
+            $validated = $validated + [User::ATTRIBUTE_EMAIL_VERIFIED_AT => null];
 
-        if ($input['email'] !== $user->email && $user instanceof MustVerifyEmail) {
-            $this->updateVerifiedUser($user, $input);
+            $user->update($validated);
+
+            $user->sendEmailVerificationNotification();
         } else {
-            $user->forceFill([
-                User::ATTRIBUTE_NAME => Arr::get($input, 'name'),
-                User::ATTRIBUTE_EMAIL => Arr::get($input, 'email'),
-            ])->save();
+            $user->update($validated);
         }
-    }
-
-    /**
-     * Update the given verified user's profile information.
-     *
-     * @param  mixed  $user
-     * @param  array  $input
-     * @return void
-     */
-    protected function updateVerifiedUser(mixed $user, array $input): void
-    {
-        $user->forceFill([
-            User::ATTRIBUTE_NAME => Arr::get($input, 'name'),
-            User::ATTRIBUTE_EMAIL => Arr::get($input, 'email'),
-            User::ATTRIBUTE_EMAIL_VERIFIED_AT => null,
-        ])->save();
-
-        $user->sendEmailVerificationNotification();
     }
 }

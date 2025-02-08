@@ -7,8 +7,9 @@ namespace App\Http\Api\Field\Wiki\Anime\Theme;
 use App\Contracts\Http\Api\Field\CreatableField;
 use App\Contracts\Http\Api\Field\SelectableField;
 use App\Contracts\Http\Api\Field\UpdatableField;
-use App\Http\Api\Criteria\Field\Criteria;
 use App\Http\Api\Field\Field;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Song;
 use Illuminate\Http\Request;
@@ -21,10 +22,12 @@ class ThemeSongIdField extends Field implements CreatableField, SelectableField,
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(AnimeTheme::ATTRIBUTE_SONG);
+        parent::__construct($schema, AnimeTheme::ATTRIBUTE_SONG);
     }
 
     /**
@@ -39,17 +42,18 @@ class ThemeSongIdField extends Field implements CreatableField, SelectableField,
             'sometimes',
             'required',
             'integer',
-            Rule::exists(Song::TABLE, Song::ATTRIBUTE_ID),
+            Rule::exists(Song::class, Song::ATTRIBUTE_ID),
         ];
     }
 
     /**
      * Determine if the field should be included in the select clause of our query.
      *
-     * @param  Criteria|null  $criteria
+     * @param  Query  $query
+     * @param  Schema  $schema
      * @return bool
      */
-    public function shouldSelect(?Criteria $criteria): bool
+    public function shouldSelect(Query $query, Schema $schema): bool
     {
         // Needed to match song relation.
         return true;
@@ -67,7 +71,7 @@ class ThemeSongIdField extends Field implements CreatableField, SelectableField,
             'sometimes',
             'required',
             'integer',
-            Rule::exists(Song::TABLE, Song::ATTRIBUTE_ID),
+            Rule::exists(Song::class, Song::ATTRIBUTE_ID),
         ];
     }
 }

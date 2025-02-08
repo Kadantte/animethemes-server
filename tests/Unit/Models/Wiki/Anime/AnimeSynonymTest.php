@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Models\Wiki\Anime;
 
+use App\Enums\Models\Wiki\AnimeSynonymType;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -17,6 +17,22 @@ use Tests\TestCase;
 class AnimeSynonymTest extends TestCase
 {
     use WithFaker;
+
+    /**
+     * The type attribute of a synonym shall be cast to a AnimeSynonymType enum instance.
+     *
+     * @return void
+     */
+    public function testCastsTypeToEnum(): void
+    {
+        $theme = AnimeSynonym::factory()
+            ->for(Anime::factory())
+            ->createOne();
+
+        $type = $theme->type;
+
+        static::assertInstanceOf(AnimeSynonymType::class, $type);
+    }
 
     /**
      * Synonym shall be a searchable resource.
@@ -47,22 +63,6 @@ class AnimeSynonymTest extends TestCase
     }
 
     /**
-     * Synonyms shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $synonym = AnimeSynonym::factory()
-            ->for(Anime::factory())
-            ->createOne();
-
-        static::assertEquals(1, $synonym->audits()->count());
-    }
-
-    /**
      * Synonyms shall be nameable.
      *
      * @return void
@@ -74,6 +74,20 @@ class AnimeSynonymTest extends TestCase
             ->createOne();
 
         static::assertIsString($synonym->getName());
+    }
+
+    /**
+     * Synonyms shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $synonym = AnimeSynonym::factory()
+            ->for(Anime::factory())
+            ->createOne();
+
+        static::assertIsString($synonym->getSubtitle());
     }
 
     /**

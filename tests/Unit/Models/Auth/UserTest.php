@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Tests\Unit\Models\Auth;
 
 use App\Models\Auth\User;
+use App\Models\List\Playlist;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\PersonalAccessToken;
 use Tests\TestCase;
@@ -19,7 +20,6 @@ use Tests\TestCase;
 class UserTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * Users shall have a one-to-many polymorphic relationship to PersonalAccessToken.
@@ -44,8 +44,6 @@ class UserTest extends TestCase
      */
     public function testVerificationEmailNotification(): void
     {
-        Notification::fake();
-
         $user = User::factory()->createOne();
 
         $user->sendEmailVerificationNotification();
@@ -63,5 +61,35 @@ class UserTest extends TestCase
         $user = User::factory()->createOne();
 
         static::assertIsString($user->getName());
+    }
+
+    /**
+     * Users shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $user = User::factory()->createOne();
+
+        static::assertIsString($user->getSubtitle());
+    }
+
+    /**
+     * User shall have a one-to-many relationship with the type Playlist.
+     *
+     * @return void
+     */
+    public function testPlaylists(): void
+    {
+        $playlistCount = $this->faker->randomDigitNotNull();
+
+        $user = User::factory()
+            ->has(Playlist::factory()->count($playlistCount))
+            ->createOne();
+
+        static::assertInstanceOf(HasMany::class, $user->playlists());
+        static::assertEquals($playlistCount, $user->playlists()->count());
+        static::assertInstanceOf(Playlist::class, $user->playlists()->first());
     }
 }

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\ExternalResource;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\ExternalResource;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,10 +15,8 @@ use Tests\TestCase;
  */
 class ExternalResourceDestroyTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
-     * The ExternalResource Destroy Endpoint shall be protected by sanctum.
+     * The External Resource Destroy Endpoint shall be protected by sanctum.
      *
      * @return void
      */
@@ -32,7 +30,43 @@ class ExternalResourceDestroyTest extends TestCase
     }
 
     /**
-     * The ExternalResource Destroy Endpoint shall delete the resource.
+     * The External Resource Destroy Endpoint shall forbid users without the delete external resource permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $resource = ExternalResource::factory()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.resource.destroy', ['resource' => $resource]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The External Resource Destroy Endpoint shall forbid users from updating a resource that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $resource = ExternalResource::factory()->trashed()->createOne();
+
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(ExternalResource::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.resource.destroy', ['resource' => $resource]));
+
+        $response->assertNotFound();
+    }
+
+    /**
+     * The External Resource Destroy Endpoint shall delete the resource.
      *
      * @return void
      */
@@ -40,7 +74,7 @@ class ExternalResourceDestroyTest extends TestCase
     {
         $resource = ExternalResource::factory()->createOne();
 
-        $user = User::factory()->withPermission('delete external resource')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(ExternalResource::class))->createOne();
 
         Sanctum::actingAs($user);
 

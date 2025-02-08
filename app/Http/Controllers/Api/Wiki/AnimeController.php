@@ -4,126 +4,142 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki;
 
-use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Anime\AnimeDestroyRequest;
-use App\Http\Requests\Api\Wiki\Anime\AnimeForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Anime\AnimeIndexRequest;
-use App\Http\Requests\Api\Wiki\Anime\AnimeRestoreRequest;
-use App\Http\Requests\Api\Wiki\Anime\AnimeShowRequest;
-use App\Http\Requests\Api\Wiki\Anime\AnimeStoreRequest;
-use App\Http\Requests\Api\Wiki\Anime\AnimeUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Collection\AnimeCollection;
+use App\Http\Resources\Wiki\Resource\AnimeResource;
 use App\Models\Wiki\Anime;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class AnimeController.
  */
-class AnimeController extends Controller
+class AnimeController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Anime::class, 'anime');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  AnimeIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return AnimeCollection
      */
-    #[Route(fullUri: 'anime', name: 'anime.index')]
-    public function index(AnimeIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): AnimeCollection
     {
-        $query = $request->getQuery();
+        $query = new Query($request->validated());
 
-        if ($query->hasSearchCriteria()) {
-            return $query->search(PaginationStrategy::OFFSET())->toResponse($request);
-        }
+        $anime = $query->hasSearchCriteria()
+            ? $action->search($query, $request->schema())
+            : $action->index(Anime::query(), $query, $request->schema());
 
-        return $query->index()->toResponse($request);
+        return new AnimeCollection($anime, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  AnimeStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return AnimeResource
      */
-    #[Route(fullUri: 'anime', name: 'anime.store', middleware: 'auth:sanctum')]
-    public function store(AnimeStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): AnimeResource
     {
-        $resource = $request->getQuery()->store();
+        $anime = $action->store(Anime::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new AnimeResource($anime, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  AnimeShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Anime  $anime
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return AnimeResource
      */
-    #[Route(fullUri: 'anime/{anime}', name: 'anime.show')]
-    public function show(AnimeShowRequest $request, Anime $anime): JsonResponse
+    public function show(ShowRequest $request, Anime $anime, ShowAction $action): AnimeResource
     {
-        $resource = $request->getQuery()->show($anime);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($anime, $query, $request->schema());
+
+        return new AnimeResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  AnimeUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Anime  $anime
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return AnimeResource
      */
-    #[Route(fullUri: 'anime/{anime}', name: 'anime.update', middleware: 'auth:sanctum')]
-    public function update(AnimeUpdateRequest $request, Anime $anime): JsonResponse
+    public function update(UpdateRequest $request, Anime $anime, UpdateAction $action): AnimeResource
     {
-        $resource = $request->getQuery()->update($anime);
+        $updated = $action->update($anime, $request->validated());
 
-        return $resource->toResponse($request);
+        return new AnimeResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  AnimeDestroyRequest  $request
      * @param  Anime  $anime
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return AnimeResource
      */
-    #[Route(fullUri: 'anime/{anime}', name: 'anime.destroy', middleware: 'auth:sanctum')]
-    public function destroy(AnimeDestroyRequest $request, Anime $anime): JsonResponse
+    public function destroy(Anime $anime, DestroyAction $action): AnimeResource
     {
-        $resource = $request->getQuery()->destroy($anime);
+        $deleted = $action->destroy($anime);
 
-        return $resource->toResponse($request);
+        return new AnimeResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  AnimeRestoreRequest  $request
      * @param  Anime  $anime
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return AnimeResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/anime/{anime}', name: 'anime.restore', middleware: 'auth:sanctum')]
-    public function restore(AnimeRestoreRequest $request, Anime $anime): JsonResponse
+    public function restore(Anime $anime, RestoreAction $action): AnimeResource
     {
-        $resource = $request->getQuery()->restore($anime);
+        $restored = $action->restore($anime);
 
-        return $resource->toResponse($request);
+        return new AnimeResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  AnimeForceDeleteRequest  $request
      * @param  Anime  $anime
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/anime/{anime}', name: 'anime.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(AnimeForceDeleteRequest $request, Anime $anime): JsonResponse
+    public function forceDelete(Anime $anime, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($anime);
+        $message = $action->forceDelete($anime);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

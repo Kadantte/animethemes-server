@@ -4,42 +4,43 @@ declare(strict_types=1);
 
 namespace App\Events\Auth\User;
 
-use App\Constants\Config\ServiceConstants;
-use App\Contracts\Events\DiscordMessageEvent;
-use App\Enums\Discord\EmbedColor;
-use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Support\Facades\Config;
-use NotificationChannels\Discord\DiscordMessage;
+use App\Events\Base\Admin\AdminDeletedEvent;
+use App\Models\Auth\User;
 
 /**
  * Class UserDeleted.
+ *
+ * @extends AdminDeletedEvent<User>
  */
-class UserDeleted extends UserEvent implements DiscordMessageEvent
+class UserDeleted extends AdminDeletedEvent
 {
-    use Dispatchable;
-
     /**
-     * Get Discord message payload.
+     * Create a new event instance.
      *
-     * @return DiscordMessage
+     * @param  User  $user
      */
-    public function getDiscordMessage(): DiscordMessage
+    public function __construct(User $user)
     {
-        $user = $this->getUser();
-
-        return DiscordMessage::create('', [
-            'description' => "User '**{$user->getName()}**' has been deleted.",
-            'color' => EmbedColor::RED,
-        ]);
+        parent::__construct($user);
     }
 
     /**
-     * Get Discord channel the message will be sent to.
+     * Get the model that has fired this event.
+     *
+     * @return User
+     */
+    public function getModel(): User
+    {
+        return $this->model;
+    }
+
+    /**
+     * Get the description for the Discord message payload.
      *
      * @return string
      */
-    public function getDiscordChannel(): string
+    protected function getDiscordMessageDescription(): string
     {
-        return Config::get(ServiceConstants::ADMIN_DISCORD_CHANNEL_QUALIFIED);
+        return "User '**{$this->getModel()->getName()}**' has been deleted.";
     }
 }

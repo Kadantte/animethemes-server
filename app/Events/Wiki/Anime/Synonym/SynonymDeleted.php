@@ -6,12 +6,12 @@ namespace App\Events\Wiki\Anime\Synonym;
 
 use App\Contracts\Events\UpdateRelatedIndicesEvent;
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Anime\Synonym as SynonymFilament;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
 use App\Models\Wiki\Video;
-use App\Nova\Resources\Wiki\Anime\Synonym as SynonymResource;
 
 /**
  * Class SynonymDeleted.
@@ -59,7 +59,7 @@ class SynonymDeleted extends WikiDeletedEvent implements UpdateRelatedIndicesEve
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -69,13 +69,13 @@ class SynonymDeleted extends WikiDeletedEvent implements UpdateRelatedIndicesEve
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = SynonymResource::uriKey();
+        $uriKey = SynonymFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

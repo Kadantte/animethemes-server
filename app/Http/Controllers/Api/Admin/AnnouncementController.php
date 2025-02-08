@@ -4,121 +4,140 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Admin\AnnouncementDestroyRequest;
-use App\Http\Requests\Api\Admin\AnnouncementForceDeleteRequest;
-use App\Http\Requests\Api\Admin\AnnouncementIndexRequest;
-use App\Http\Requests\Api\Admin\AnnouncementRestoreRequest;
-use App\Http\Requests\Api\Admin\AnnouncementShowRequest;
-use App\Http\Requests\Api\Admin\AnnouncementStoreRequest;
-use App\Http\Requests\Api\Admin\AnnouncementUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Admin\Collection\AnnouncementCollection;
+use App\Http\Resources\Admin\Resource\AnnouncementResource;
 use App\Models\Admin\Announcement;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class AnnouncementController.
  */
-class AnnouncementController extends Controller
+class AnnouncementController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Announcement::class, 'announcement');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  AnnouncementIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return AnnouncementCollection
      */
-    #[Route(fullUri: 'announcement', name: 'announcement.index')]
-    public function index(AnnouncementIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): AnnouncementCollection
     {
-        $announcements = $request->getQuery()->index();
+        $query = new Query($request->validated());
 
-        return $announcements->toResponse($request);
+        $announcements = $action->index(Announcement::query(), $query, $request->schema());
+
+        return new AnnouncementCollection($announcements, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  AnnouncementStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return AnnouncementResource
      */
-    #[Route(fullUri: 'announcement', name: 'announcement.store', middleware: 'auth:sanctum')]
-    public function store(AnnouncementStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): AnnouncementResource
     {
-        $resource = $request->getQuery()->store();
+        $announcement = $action->store(Announcement::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new AnnouncementResource($announcement, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  AnnouncementShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Announcement  $announcement
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return AnnouncementResource
      */
-    #[Route(fullUri: 'announcement/{announcement}', name: 'announcement.show')]
-    public function show(AnnouncementShowRequest $request, Announcement $announcement): JsonResponse
+    public function show(ShowRequest $request, Announcement $announcement, ShowAction $action): AnnouncementResource
     {
-        $resource = $request->getQuery()->show($announcement);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($announcement, $query, $request->schema());
+
+        return new AnnouncementResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  AnnouncementUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Announcement  $announcement
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return AnnouncementResource
      */
-    #[Route(fullUri: 'announcement/{announcement}', name: 'announcement.update', middleware: 'auth:sanctum')]
-    public function update(AnnouncementUpdateRequest $request, Announcement $announcement): JsonResponse
+    public function update(UpdateRequest $request, Announcement $announcement, UpdateAction $action): AnnouncementResource
     {
-        $resource = $request->getQuery()->update($announcement);
+        $updated = $action->update($announcement, $request->validated());
 
-        return $resource->toResponse($request);
+        return new AnnouncementResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  AnnouncementDestroyRequest  $request
      * @param  Announcement  $announcement
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return AnnouncementResource
      */
-    #[Route(fullUri: 'announcement/{announcement}', name: 'announcement.destroy', middleware: 'auth:sanctum')]
-    public function destroy(AnnouncementDestroyRequest $request, Announcement $announcement): JsonResponse
+    public function destroy(Announcement $announcement, DestroyAction $action): AnnouncementResource
     {
-        $resource = $request->getQuery()->destroy($announcement);
+        $deleted = $action->destroy($announcement);
 
-        return $resource->toResponse($request);
+        return new AnnouncementResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  AnnouncementRestoreRequest  $request
      * @param  Announcement  $announcement
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return AnnouncementResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/announcement/{announcement}', name: 'announcement.restore', middleware: 'auth:sanctum')]
-    public function restore(AnnouncementRestoreRequest $request, Announcement $announcement): JsonResponse
+    public function restore(Announcement $announcement, RestoreAction $action): AnnouncementResource
     {
-        $resource = $request->getQuery()->restore($announcement);
+        $restored = $action->restore($announcement);
 
-        return $resource->toResponse($request);
+        return new AnnouncementResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  AnnouncementForceDeleteRequest  $request
      * @param  Announcement  $announcement
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/announcement/{announcement}', name: 'announcement.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(AnnouncementForceDeleteRequest $request, Announcement $announcement): JsonResponse
+    public function forceDelete(Announcement $announcement, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($announcement);
+        $message = $action->forceDelete($announcement);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

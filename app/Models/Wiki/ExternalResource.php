@@ -4,21 +4,24 @@ declare(strict_types=1);
 
 namespace App\Models\Wiki;
 
+use App\Concerns\Models\Reportable;
 use App\Enums\Models\Wiki\ResourceSite;
 use App\Events\Wiki\ExternalResource\ExternalResourceCreated;
 use App\Events\Wiki\ExternalResource\ExternalResourceDeleted;
 use App\Events\Wiki\ExternalResource\ExternalResourceRestored;
 use App\Events\Wiki\ExternalResource\ExternalResourceUpdated;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeResourceResource;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeStudioResource;
+use App\Http\Resources\Pivot\Wiki\Resource\ArtistResourceResource;
+use App\Http\Resources\Pivot\Wiki\Resource\SongResourceResource;
 use App\Models\BaseModel;
-use App\Pivots\AnimeResource;
-use App\Pivots\ArtistResource;
-use App\Pivots\BasePivot;
-use App\Pivots\StudioResource;
-use BenSampo\Enum\Enum;
+use App\Pivots\Wiki\AnimeResource;
+use App\Pivots\Wiki\ArtistResource;
+use App\Pivots\Wiki\SongResource;
+use App\Pivots\Wiki\StudioResource;
 use Database\Factories\Wiki\ExternalResourceFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
-use Laravel\Nova\Actions\Actionable;
 
 /**
  * Class Resource.
@@ -27,15 +30,16 @@ use Laravel\Nova\Actions\Actionable;
  * @property Collection<int, Artist> $artists
  * @property int|null $external_id
  * @property string|null $link
- * @property BasePivot $pivot
  * @property int $resource_id
- * @property Enum|null $site
+ * @property ResourceSite|null $site
+ * @property Collection<int, Song> $songs
+ * @property Collection<int, Studio> $studios
  *
  * @method static ExternalResourceFactory factory(...$parameters)
  */
 class ExternalResource extends BaseModel
 {
-    use Actionable;
+    use Reportable;
 
     final public const TABLE = 'resources';
 
@@ -46,12 +50,13 @@ class ExternalResource extends BaseModel
 
     final public const RELATION_ANIME = 'anime';
     final public const RELATION_ARTISTS = 'artists';
+    final public const RELATION_SONGS = 'songs';
     final public const RELATION_STUDIOS = 'studios';
 
     /**
      * The attributes that are mass assignable.
      *
-     * @var string[]
+     * @var list<string>
      */
     protected $fillable = [
         ExternalResource::ATTRIBUTE_EXTERNAL_ID,
@@ -88,14 +93,17 @@ class ExternalResource extends BaseModel
     protected $primaryKey = ExternalResource::ATTRIBUTE_ID;
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        ExternalResource::ATTRIBUTE_EXTERNAL_ID => 'int',
-        ExternalResource::ATTRIBUTE_SITE => ResourceSite::class,
-    ];
+    protected function casts(): array
+    {
+        return [
+            ExternalResource::ATTRIBUTE_EXTERNAL_ID => 'int',
+            ExternalResource::ATTRIBUTE_SITE => ResourceSite::class,
+        ];
+    }
 
     /**
      * Get name.
@@ -108,41 +116,68 @@ class ExternalResource extends BaseModel
     }
 
     /**
+     * Get subtitle.
+     *
+     * @return string
+     */
+    public function getSubtitle(): string
+    {
+        return strval($this->external_id);
+    }
+
+    /**
      * Get the anime that reference this resource.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Anime, $this>
      */
     public function anime(): BelongsToMany
     {
         return $this->belongsToMany(Anime::class, AnimeResource::TABLE, ExternalResource::ATTRIBUTE_ID, Anime::ATTRIBUTE_ID)
             ->using(AnimeResource::class)
             ->withPivot(AnimeResource::ATTRIBUTE_AS)
+            ->as(AnimeResourceResource::$wrap)
             ->withTimestamps();
     }
 
     /**
      * Get the artists that reference this resource.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Artist, $this>
      */
     public function artists(): BelongsToMany
     {
         return $this->belongsToMany(Artist::class, ArtistResource::TABLE, ExternalResource::ATTRIBUTE_ID, Artist::ATTRIBUTE_ID)
             ->using(ArtistResource::class)
             ->withPivot(ArtistResource::ATTRIBUTE_AS)
+            ->as(ArtistResourceResource::$wrap)
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the song that reference this resource.
+     *
+     * @return BelongsToMany<Song, $this>
+     */
+    public function songs(): BelongsToMany
+    {
+        return $this->belongsToMany(Song::class, SongResource::TABLE, ExternalResource::ATTRIBUTE_ID, Song::ATTRIBUTE_ID)
+            ->using(SongResource::class)
+            ->withPivot(SongResource::ATTRIBUTE_AS)
+            ->as(SongResourceResource::$wrap)
             ->withTimestamps();
     }
 
     /**
      * Get the studios that reference this resource.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Studio, $this>
      */
     public function studios(): BelongsToMany
     {
         return $this->belongsToMany(Studio::class, StudioResource::TABLE, ExternalResource::ATTRIBUTE_ID, Studio::ATTRIBUTE_ID)
-        ->using(StudioResource::class)
-        ->withPivot(StudioResource::ATTRIBUTE_AS)
-        ->withTimestamps();
+            ->using(StudioResource::class)
+            ->withPivot(StudioResource::ATTRIBUTE_AS)
+            ->as(AnimeStudioResource::$wrap)
+            ->withTimestamps();
     }
 }

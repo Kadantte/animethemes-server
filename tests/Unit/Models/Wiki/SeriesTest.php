@@ -6,10 +6,9 @@ namespace Tests\Unit\Models\Wiki;
 
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Series;
-use App\Pivots\AnimeSeries;
+use App\Pivots\Wiki\AnimeSeries;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -44,20 +43,6 @@ class SeriesTest extends TestCase
     }
 
     /**
-     * Series shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $series = Series::factory()->createOne();
-
-        static::assertEquals(1, $series->audits()->count());
-    }
-
-    /**
      * Series shall be nameable.
      *
      * @return void
@@ -67,6 +52,18 @@ class SeriesTest extends TestCase
         $series = Series::factory()->createOne();
 
         static::assertIsString($series->getName());
+    }
+
+    /**
+     * Series shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $series = Series::factory()->createOne();
+
+        static::assertIsString($series->getSubtitle());
     }
 
     /**

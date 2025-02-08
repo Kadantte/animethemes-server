@@ -4,21 +4,24 @@ declare(strict_types=1);
 
 namespace App\Console;
 
-use App\Console\Commands\Billing\Balance\BalanceReconcileCommand;
-use App\Console\Commands\Billing\Transaction\TransactionReconcileCommand;
-use App\Console\Commands\Document\DocumentDatabaseDumpCommand;
-use App\Console\Commands\PruneDatabaseDumpsCommand;
-use App\Console\Commands\Wiki\WikiDatabaseDumpCommand;
-use App\Enums\Models\Billing\Service;
+use App\Console\Commands\Models\SyncViewAggregatesCommand;
+use App\Console\Commands\Storage\Admin\DocumentDumpCommand;
+use App\Console\Commands\Storage\Admin\DumpPruneCommand;
+use App\Console\Commands\Storage\Admin\WikiDumpCommand;
 use App\Models\BaseModel;
+use BezhanSalleh\FilamentExceptions\Models\Exception;
+use Illuminate\Auth\Console\ClearResetsCommand;
+use Illuminate\Cache\Console\PruneStaleTagsCommand;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Database\Console\MonitorCommand as MonitorDatabaseCommand;
 use Illuminate\Database\Console\PruneCommand as PruneModelsCommand;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use Illuminate\Queue\Console\MonitorCommand as MonitorQueueCommand;
+use Illuminate\Queue\Console\PruneBatchesCommand;
 use Illuminate\Queue\Console\PruneFailedJobsCommand;
-use Illuminate\Support\Facades\Config;
 use Laravel\Horizon\Console\SnapshotCommand;
 use Laravel\Sanctum\Console\Commands\PruneExpired;
-use Laravel\Telescope\Console\PruneCommand as PruneTelescopeEntriesCommand;
+use Propaganistas\LaravelDisposableEmail\Console\UpdateDisposableDomainsCommand;
 
 /**
  * Class Kernel.
@@ -35,38 +38,47 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->command(BalanceReconcileCommand::class, [Service::DIGITALOCEAN()->key])
+        $schedule->command(ClearResetsCommand::class)
             ->withoutOverlapping()
             ->runInBackground()
             ->storeOutput()
-            ->hourly();
+            ->everyFifteenMinutes();
 
-        // Managed database requires --single-transaction and --set-gtid-purged=OFF
-        $schedule->command(DocumentDatabaseDumpCommand::class, ['--single-transaction', '--set-gtid-purged' => 'OFF'])
-            ->withoutOverlapping()
-            ->runInBackground()
-            ->storeOutput()
-            ->daily();
-
-        // Managed database requires --single-transaction and --set-gtid-purged=OFF
-        $schedule->command(WikiDatabaseDumpCommand::class, ['--single-transaction', '--set-gtid-purged' => 'OFF'])
+        $schedule->command(DocumentDumpCommand::class)
             ->withoutOverlapping()
             ->runInBackground()
             ->storeOutput()
             ->daily();
 
-        // Managed database requires --single-transaction and --set-gtid-purged=OFF
-        $schedule->command(WikiDatabaseDumpCommand::class, ['--single-transaction', '--set-gtid-purged' => 'OFF', '--no-create-info'])
+        $schedule->command(WikiDumpCommand::class)
             ->withoutOverlapping()
             ->runInBackground()
             ->storeOutput()
             ->daily();
 
-        $schedule->command(PruneDatabaseDumpsCommand::class)
+        $schedule->command(DumpPruneCommand::class)
             ->withoutOverlapping()
             ->runInBackground()
             ->storeOutput()
             ->dailyAt('00:15');
+
+        $schedule->command(MonitorDatabaseCommand::class, ['--max' => 100])
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->storeOutput()
+            ->everyMinute();
+
+        $schedule->command(MonitorQueueCommand::class, ['queues' => 'default', '--max' => 100])
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->storeOutput()
+            ->everyMinute();
+
+        $schedule->command(PruneBatchesCommand::class)
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->storeOutput()
+            ->daily();
 
         $schedule->command(PruneExpired::class)
             ->withoutOverlapping()
@@ -86,13 +98,17 @@ class Kernel extends ConsoleKernel
             ->storeOutput()
             ->daily();
 
-        if (Config::get('telescope.enabled', false)) {
-            $schedule->command(PruneTelescopeEntriesCommand::class)
-                ->withoutOverlapping()
-                ->runInBackground()
-                ->storeOutput()
-                ->daily();
-        }
+        $schedule->command(PruneModelsCommand::class, ['--model' => [Exception::class]]) // Filament Exception Viewer Plugin
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->storeOutput()
+            ->daily();
+
+        $schedule->command(PruneStaleTagsCommand::class)
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->storeOutput()
+            ->hourly();
 
         $schedule->command(SnapshotCommand::class)
             ->withoutOverlapping()
@@ -100,11 +116,17 @@ class Kernel extends ConsoleKernel
             ->storeOutput()
             ->everyFiveMinutes();
 
-        $schedule->command(TransactionReconcileCommand::class, [Service::DIGITALOCEAN()->key])
+        $schedule->command(SyncViewAggregatesCommand::class)
             ->withoutOverlapping()
             ->runInBackground()
             ->storeOutput()
-            ->hourly();
+            ->everyThreeHours();
+
+        $schedule->command(UpdateDisposableDomainsCommand::class)
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->storeOutput()
+            ->weekly();
     }
 
     /**

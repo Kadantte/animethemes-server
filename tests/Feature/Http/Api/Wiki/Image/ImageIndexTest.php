@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Image;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ImageFacet;
 use App\Http\Api\Criteria\Filter\TrashedCriteria;
@@ -19,18 +21,19 @@ use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Wiki\Image\ImageReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\ImageSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Wiki\Collection\ImageCollection;
 use App\Http\Resources\Wiki\Resource\ImageResource;
 use App\Models\BaseModel;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Artist;
 use App\Models\Wiki\Image;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -38,8 +41,8 @@ use Tests\TestCase;
  */
 class ImageIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Image Index Endpoint shall return a collection of Image Resources.
@@ -57,7 +60,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($images, new ImageReadQuery()))
+                    new ImageCollection($images, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -116,7 +119,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($images, new ImageReadQuery($parameters)))
+                    new ImageCollection($images, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -153,7 +156,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($images, new ImageReadQuery($parameters)))
+                    new ImageCollection($images, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -171,25 +174,28 @@ class ImageIndexTest extends TestCase
     {
         $schema = new ImageSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new ImageReadQuery($parameters);
+        $query = new Query($parameters);
 
         Image::factory()->count($this->faker->randomDigitNotNull())->create();
 
         $response = $this->get(route('api.image.index', $parameters));
 
+        $images = $this->sort(Image::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new ImageCollection($images, $query)
                         ->response()
                         ->getData()
                 ),
@@ -232,7 +238,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($image, new ImageReadQuery($parameters)))
+                    new ImageCollection($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -275,7 +281,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($image, new ImageReadQuery($parameters)))
+                    new ImageCollection($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -293,7 +299,7 @@ class ImageIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -302,10 +308,7 @@ class ImageIndexTest extends TestCase
 
         Image::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteImage = Image::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteImage->each(function (Image $image) {
-            $image->delete();
-        });
+        Image::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $image = Image::withoutTrashed()->get();
 
@@ -314,7 +317,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($image, new ImageReadQuery($parameters)))
+                    new ImageCollection($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -332,7 +335,7 @@ class ImageIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -341,10 +344,7 @@ class ImageIndexTest extends TestCase
 
         Image::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteImage = Image::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteImage->each(function (Image $image) {
-            $image->delete();
-        });
+        Image::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $image = Image::withTrashed()->get();
 
@@ -353,7 +353,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($image, new ImageReadQuery($parameters)))
+                    new ImageCollection($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -371,7 +371,7 @@ class ImageIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -380,10 +380,7 @@ class ImageIndexTest extends TestCase
 
         Image::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteImage = Image::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteImage->each(function (Image $image) {
-            $image->delete();
-        });
+        Image::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $image = Image::onlyTrashed()->get();
 
@@ -392,7 +389,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($image, new ImageReadQuery($parameters)))
+                    new ImageCollection($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -414,7 +411,7 @@ class ImageIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -422,17 +419,11 @@ class ImageIndexTest extends TestCase
         ];
 
         Carbon::withTestNow($deletedFilter, function () {
-            $images = Image::factory()->count($this->faker->randomDigitNotNull())->create();
-            $images->each(function (Image $image) {
-                $image->delete();
-            });
+            Image::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         Carbon::withTestNow($excludedDate, function () {
-            $images = Image::factory()->count($this->faker->randomDigitNotNull())->create();
-            $images->each(function (Image $image) {
-                $image->delete();
-            });
+            Image::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         $image = Image::withTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, $deletedFilter)->get();
@@ -442,7 +433,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($image, new ImageReadQuery($parameters)))
+                    new ImageCollection($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -458,11 +449,11 @@ class ImageIndexTest extends TestCase
      */
     public function testFacetFilter(): void
     {
-        $facetFilter = ImageFacet::getRandomInstance();
+        $facetFilter = Arr::random(ImageFacet::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Image::ATTRIBUTE_FACET => $facetFilter->description,
+                Image::ATTRIBUTE_FACET => $facetFilter->localize(),
             ],
         ];
 
@@ -477,7 +468,49 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($images, new ImageReadQuery($parameters)))
+                    new ImageCollection($images, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Image Index Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Image::RELATION_ANIME,
+        ];
+
+        Image::factory()
+            ->has(Anime::factory()->count($this->faker->randomDigitNotNull()))
+            ->count($this->faker->randomDigitNotNull())
+            ->create();
+
+        $images = Image::with([
+            Image::RELATION_ANIME => function (BelongsToMany $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ])
+        ->get();
+
+        $response = $this->get(route('api.image.index', $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new ImageCollection($images, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -493,11 +526,11 @@ class ImageIndexTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Image::RELATION_ANIME,
         ];
@@ -519,7 +552,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($images, new ImageReadQuery($parameters)))
+                    new ImageCollection($images, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -568,7 +601,7 @@ class ImageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageCollection($images, new ImageReadQuery($parameters)))
+                    new ImageCollection($images, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

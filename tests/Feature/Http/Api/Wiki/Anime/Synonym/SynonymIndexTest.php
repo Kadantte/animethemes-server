@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Anime\Synonym;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Http\Api\Criteria\Filter\TrashedCriteria;
 use App\Http\Api\Criteria\Paging\Criteria;
@@ -18,17 +20,18 @@ use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Wiki\Anime\Synonym\SynonymReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\Anime\SynonymSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Wiki\Anime\Collection\SynonymCollection;
 use App\Http\Resources\Wiki\Anime\Resource\SynonymResource;
 use App\Models\BaseModel;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -36,8 +39,8 @@ use Tests\TestCase;
  */
 class SynonymIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Synonym Index Endpoint shall return a collection of Synonym Resources.
@@ -58,7 +61,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonyms, new SynonymReadQuery()))
+                    new SynonymCollection($synonyms, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -119,7 +122,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonyms, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonyms, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -159,7 +162,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonyms, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonyms, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -177,16 +180,17 @@ class SynonymIndexTest extends TestCase
     {
         $schema = new SynonymSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new SynonymReadQuery($parameters);
+        $query = new Query($parameters);
 
         AnimeSynonym::factory()
             ->for(Anime::factory())
@@ -195,10 +199,12 @@ class SynonymIndexTest extends TestCase
 
         $response = $this->get(route('api.animesynonym.index', $parameters));
 
+        $synonyms = $this->sort(AnimeSynonym::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new SynonymCollection($synonyms, $query)
                         ->response()
                         ->getData()
                 ),
@@ -247,7 +253,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -296,7 +302,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -314,7 +320,7 @@ class SynonymIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -326,14 +332,11 @@ class SynonymIndexTest extends TestCase
             ->count($this->faker->randomDigitNotNull())
             ->create();
 
-        $deleteSynonym = AnimeSynonym::factory()
+        AnimeSynonym::factory()
+            ->trashed()
             ->for(Anime::factory())
             ->count($this->faker->randomDigitNotNull())
             ->create();
-
-        $deleteSynonym->each(function (AnimeSynonym $synonym) {
-            $synonym->delete();
-        });
 
         $synonym = AnimeSynonym::withoutTrashed()->get();
 
@@ -342,7 +345,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -360,7 +363,7 @@ class SynonymIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -372,14 +375,11 @@ class SynonymIndexTest extends TestCase
             ->count($this->faker->randomDigitNotNull())
             ->create();
 
-        $deleteSynonym = AnimeSynonym::factory()
+        AnimeSynonym::factory()
+            ->trashed()
             ->for(Anime::factory())
             ->count($this->faker->randomDigitNotNull())
             ->create();
-
-        $deleteSynonym->each(function (AnimeSynonym $synonym) {
-            $synonym->delete();
-        });
 
         $synonym = AnimeSynonym::withTrashed()->get();
 
@@ -388,7 +388,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -406,7 +406,7 @@ class SynonymIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -418,14 +418,11 @@ class SynonymIndexTest extends TestCase
             ->count($this->faker->randomDigitNotNull())
             ->create();
 
-        $deleteSynonym = AnimeSynonym::factory()
+        AnimeSynonym::factory()
+            ->trashed()
             ->for(Anime::factory())
             ->count($this->faker->randomDigitNotNull())
             ->create();
-
-        $deleteSynonym->each(function (AnimeSynonym $synonym) {
-            $synonym->delete();
-        });
 
         $synonym = AnimeSynonym::onlyTrashed()->get();
 
@@ -434,7 +431,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -456,7 +453,7 @@ class SynonymIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -484,7 +481,49 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonym, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Synonym Index Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => AnimeSynonym::RELATION_ANIME,
+        ];
+
+        AnimeSynonym::factory()
+            ->for(Anime::factory())
+            ->count($this->faker->randomDigitNotNull())
+            ->create();
+
+        $synonyms = AnimeSynonym::with([
+            AnimeSynonym::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ])
+        ->get();
+
+        $response = $this->get(route('api.animesynonym.index', $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new SynonymCollection($synonyms, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -500,11 +539,11 @@ class SynonymIndexTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => AnimeSynonym::RELATION_ANIME,
         ];
@@ -526,7 +565,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonyms, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonyms, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -574,7 +613,7 @@ class SynonymIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymCollection($synonyms, new SynonymReadQuery($parameters)))
+                    new SynonymCollection($synonyms, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

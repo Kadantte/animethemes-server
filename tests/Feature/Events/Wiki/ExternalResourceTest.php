@@ -9,6 +9,7 @@ use App\Events\Wiki\ExternalResource\ExternalResourceDeleted;
 use App\Events\Wiki\ExternalResource\ExternalResourceRestored;
 use App\Events\Wiki\ExternalResource\ExternalResourceUpdated;
 use App\Models\Wiki\ExternalResource;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
@@ -24,8 +25,6 @@ class ExternalResourceTest extends TestCase
      */
     public function testExternalResourceCreatedEventDispatched(): void
     {
-        Event::fake();
-
         ExternalResource::factory()->createOne();
 
         Event::assertDispatched(ExternalResourceCreated::class);
@@ -38,8 +37,6 @@ class ExternalResourceTest extends TestCase
      */
     public function testExternalResourceDeletedEventDispatched(): void
     {
-        Event::fake();
-
         $resource = ExternalResource::factory()->createOne();
 
         $resource->delete();
@@ -54,8 +51,6 @@ class ExternalResourceTest extends TestCase
      */
     public function testExternalResourceRestoredEventDispatched(): void
     {
-        Event::fake();
-
         $resource = ExternalResource::factory()->createOne();
 
         $resource->restore();
@@ -72,8 +67,6 @@ class ExternalResourceTest extends TestCase
      */
     public function testExternalResourceRestoresQuietly(): void
     {
-        Event::fake();
-
         $resource = ExternalResource::factory()->createOne();
 
         $resource->restore();
@@ -88,8 +81,6 @@ class ExternalResourceTest extends TestCase
      */
     public function testExternalResourceUpdatedEventDispatched(): void
     {
-        Event::fake();
-
         $resource = ExternalResource::factory()->createOne();
         $changes = ExternalResource::factory()->makeOne();
 
@@ -97,5 +88,25 @@ class ExternalResourceTest extends TestCase
         $resource->save();
 
         Event::assertDispatched(ExternalResourceUpdated::class);
+    }
+
+    /**
+     * The ExternalResourceUpdated event shall contain embed fields.
+     *
+     * @return void
+     */
+    public function testExternalResourceUpdatedEventEmbedFields(): void
+    {
+        $resource = ExternalResource::factory()->createOne();
+        $changes = ExternalResource::factory()->makeOne();
+
+        $resource->fill($changes->getAttributes());
+        $resource->save();
+
+        Event::assertDispatched(ExternalResourceUpdated::class, function (ExternalResourceUpdated $event) {
+            $message = $event->getDiscordMessage();
+
+            return ! empty(Arr::get($message->embed, 'fields'));
+        });
     }
 }

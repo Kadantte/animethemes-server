@@ -4,121 +4,140 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Image\ImageDestroyRequest;
-use App\Http\Requests\Api\Wiki\Image\ImageForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Image\ImageIndexRequest;
-use App\Http\Requests\Api\Wiki\Image\ImageRestoreRequest;
-use App\Http\Requests\Api\Wiki\Image\ImageShowRequest;
-use App\Http\Requests\Api\Wiki\Image\ImageStoreRequest;
-use App\Http\Requests\Api\Wiki\Image\ImageUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Actions\Http\Api\Wiki\Image\StoreImageAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Collection\ImageCollection;
+use App\Http\Resources\Wiki\Resource\ImageResource;
 use App\Models\Wiki\Image;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class ImageController.
  */
-class ImageController extends Controller
+class ImageController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Image::class, 'image');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  ImageIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return ImageCollection
      */
-    #[Route(fullUri: 'image', name: 'image.index')]
-    public function index(ImageIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): ImageCollection
     {
-        $images = $request->getQuery()->index();
+        $query = new Query($request->validated());
 
-        return $images->toResponse($request);
+        $images = $action->index(Image::query(), $query, $request->schema());
+
+        return new ImageCollection($images, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  ImageStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreImageAction  $action
+     * @return ImageResource
      */
-    #[Route(fullUri: 'image', name: 'image.store', middleware: 'auth:sanctum')]
-    public function store(ImageStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreImageAction $action): ImageResource
     {
-        $resource = $request->getQuery()->store();
+        $image = $action->store(Image::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new ImageResource($image, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  ImageShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Image  $image
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return ImageResource
      */
-    #[Route(fullUri: 'image/{image}', name: 'image.show')]
-    public function show(ImageShowRequest $request, Image $image): JsonResponse
+    public function show(ShowRequest $request, Image $image, ShowAction $action): ImageResource
     {
-        $resource = $request->getQuery()->show($image);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($image, $query, $request->schema());
+
+        return new ImageResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  ImageUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Image  $image
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return ImageResource
      */
-    #[Route(fullUri: 'image/{image}', name: 'image.update', middleware: 'auth:sanctum')]
-    public function update(ImageUpdateRequest $request, Image $image): JsonResponse
+    public function update(UpdateRequest $request, Image $image, UpdateAction $action): ImageResource
     {
-        $resource = $request->getQuery()->update($image);
+        $updated = $action->update($image, $request->validated());
 
-        return $resource->toResponse($request);
+        return new ImageResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  ImageDestroyRequest  $request
      * @param  Image  $image
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return ImageResource
      */
-    #[Route(fullUri: 'image/{image}', name: 'image.destroy', middleware: 'auth:sanctum')]
-    public function destroy(ImageDestroyRequest $request, Image $image): JsonResponse
+    public function destroy(Image $image, DestroyAction $action): ImageResource
     {
-        $resource = $request->getQuery()->destroy($image);
+        $deleted = $action->destroy($image);
 
-        return $resource->toResponse($request);
+        return new ImageResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  ImageRestoreRequest  $request
      * @param  Image  $image
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return ImageResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/image/{image}', name: 'image.restore', middleware: 'auth:sanctum')]
-    public function restore(ImageRestoreRequest $request, Image $image): JsonResponse
+    public function restore(Image $image, RestoreAction $action): ImageResource
     {
-        $resource = $request->getQuery()->restore($image);
+        $restored = $action->restore($image);
 
-        return $resource->toResponse($request);
+        return new ImageResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  ImageForceDeleteRequest  $request
      * @param  Image  $image
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/image/{image}', name: 'image.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(ImageForceDeleteRequest $request, Image $image): JsonResponse
+    public function forceDelete(Image $image, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($image);
+        $message = $action->forceDelete($image);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

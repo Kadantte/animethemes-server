@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Image;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Image;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class ImageRestoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Image Restore Endpoint shall be protected by sanctum.
      *
@@ -24,13 +22,47 @@ class ImageRestoreTest extends TestCase
      */
     public function testProtected(): void
     {
-        $image = Image::factory()->createOne();
-
-        $image->delete();
+        $image = Image::factory()->trashed()->createOne();
 
         $response = $this->patch(route('api.image.restore', ['image' => $image]));
 
         $response->assertUnauthorized();
+    }
+
+    /**
+     * The Image Restore Endpoint shall forbid users without the restore image permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $image = Image::factory()->trashed()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.image.restore', ['image' => $image]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Image Restore Endpoint shall forbid users from restoring an image that isn't trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $image = Image::factory()->createOne();
+
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Image::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.image.restore', ['image' => $image]));
+
+        $response->assertForbidden();
     }
 
     /**
@@ -40,11 +72,9 @@ class ImageRestoreTest extends TestCase
      */
     public function testRestored(): void
     {
-        $image = Image::factory()->createOne();
+        $image = Image::factory()->trashed()->createOne();
 
-        $image->delete();
-
-        $user = User::factory()->withPermission('restore image')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Image::class))->createOne();
 
         Sanctum::actingAs($user);
 

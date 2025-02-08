@@ -4,126 +4,142 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki;
 
-use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Song\SongDestroyRequest;
-use App\Http\Requests\Api\Wiki\Song\SongForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Song\SongIndexRequest;
-use App\Http\Requests\Api\Wiki\Song\SongRestoreRequest;
-use App\Http\Requests\Api\Wiki\Song\SongShowRequest;
-use App\Http\Requests\Api\Wiki\Song\SongStoreRequest;
-use App\Http\Requests\Api\Wiki\Song\SongUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Collection\SongCollection;
+use App\Http\Resources\Wiki\Resource\SongResource;
 use App\Models\Wiki\Song;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class SongController.
  */
-class SongController extends Controller
+class SongController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Song::class, 'song');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  SongIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return SongCollection
      */
-    #[Route(fullUri: 'song', name: 'song.index')]
-    public function index(SongIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): SongCollection
     {
-        $query = $request->getQuery();
+        $query = new Query($request->validated());
 
-        if ($query->hasSearchCriteria()) {
-            return $query->search(PaginationStrategy::OFFSET())->toResponse($request);
-        }
+        $songs = $query->hasSearchCriteria()
+            ? $action->search($query, $request->schema())
+            : $action->index(Song::query(), $query, $request->schema());
 
-        return $query->index()->toResponse($request);
+        return new SongCollection($songs, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  SongStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return SongResource
      */
-    #[Route(fullUri: 'song', name: 'song.store', middleware: 'auth:sanctum')]
-    public function store(SongStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): SongResource
     {
-        $resource = $request->getQuery()->store();
+        $song = $action->store(Song::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new SongResource($song, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  SongShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Song  $song
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return SongResource
      */
-    #[Route(fullUri: 'song/{song}', name: 'song.show')]
-    public function show(SongShowRequest $request, Song $song): JsonResponse
+    public function show(ShowRequest $request, Song $song, ShowAction $action): SongResource
     {
-        $resource = $request->getQuery()->show($song);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($song, $query, $request->schema());
+
+        return new SongResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  SongUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Song  $song
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return SongResource
      */
-    #[Route(fullUri: 'song/{song}', name: 'song.update', middleware: 'auth:sanctum')]
-    public function update(SongUpdateRequest $request, Song $song): JsonResponse
+    public function update(UpdateRequest $request, Song $song, UpdateAction $action): SongResource
     {
-        $resource = $request->getQuery()->update($song);
+        $updated = $action->update($song, $request->validated());
 
-        return $resource->toResponse($request);
+        return new SongResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  SongDestroyRequest  $request
      * @param  Song  $song
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return SongResource
      */
-    #[Route(fullUri: 'song/{song}', name: 'song.destroy', middleware: 'auth:sanctum')]
-    public function destroy(SongDestroyRequest $request, Song $song): JsonResponse
+    public function destroy(Song $song, DestroyAction $action): SongResource
     {
-        $resource = $request->getQuery()->destroy($song);
+        $deleted = $action->destroy($song);
 
-        return $resource->toResponse($request);
+        return new SongResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  SongRestoreRequest  $request
      * @param  Song  $song
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return SongResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/song/{song}', name: 'song.restore', middleware: 'auth:sanctum')]
-    public function restore(SongRestoreRequest $request, Song $song): JsonResponse
+    public function restore(Song $song, RestoreAction $action): SongResource
     {
-        $resource = $request->getQuery()->restore($song);
+        $restored = $action->restore($song);
 
-        return $resource->toResponse($request);
+        return new SongResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  SongForceDeleteRequest  $request
      * @param  Song  $song
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/song/{song}', name: 'song.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(SongForceDeleteRequest $request, Song $song): JsonResponse
+    public function forceDelete(Song $song, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($song);
+        $message = $action->forceDelete($song);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

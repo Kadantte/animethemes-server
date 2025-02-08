@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace App\Models\Wiki;
 
+use App\Concerns\Models\Reportable;
+use App\Contracts\Models\HasImages;
+use App\Contracts\Models\HasResources;
 use App\Events\Wiki\Studio\StudioCreated;
 use App\Events\Wiki\Studio\StudioDeleted;
 use App\Events\Wiki\Studio\StudioRestored;
 use App\Events\Wiki\Studio\StudioUpdated;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeStudioResource;
+use App\Http\Resources\Pivot\Wiki\Resource\StudioImageResource;
+use App\Http\Resources\Pivot\Wiki\Resource\StudioResourceResource;
 use App\Models\BaseModel;
-use App\Pivots\AnimeStudio;
-use App\Pivots\BasePivot;
-use App\Pivots\StudioImage;
-use App\Pivots\StudioResource;
+use App\Pivots\Wiki\AnimeStudio;
+use App\Pivots\Wiki\StudioImage;
+use App\Pivots\Wiki\StudioResource;
 use Database\Factories\Wiki\StudioFactory;
-use ElasticScoutDriverPlus\Searchable;
+use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
-use Laravel\Nova\Actions\Actionable;
 
 /**
  * Class Studio.
@@ -27,13 +31,12 @@ use Laravel\Nova\Actions\Actionable;
  * @property string $name
  * @property string $slug
  * @property int $studio_id
- * @property BasePivot $pivot
  *
  * @method static StudioFactory factory(...$parameters)
  */
-class Studio extends BaseModel
+class Studio extends BaseModel implements HasResources, HasImages
 {
-    use Actionable;
+    use Reportable;
     use Searchable;
 
     final public const TABLE = 'studios';
@@ -49,7 +52,7 @@ class Studio extends BaseModel
     /**
      * The attributes that are mass assignable.
      *
-     * @var string[]
+     * @var list<string>
      */
     protected $fillable = [
         Studio::ATTRIBUTE_NAME,
@@ -107,39 +110,52 @@ class Studio extends BaseModel
     }
 
     /**
+     * Get subtitle.
+     *
+     * @return string
+     */
+    public function getSubtitle(): string
+    {
+        return $this->slug;
+    }
+
+    /**
      * Get the anime that the studio produced.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Anime, $this>
      */
     public function anime(): BelongsToMany
     {
         return $this->belongsToMany(Anime::class, AnimeStudio::TABLE, Studio::ATTRIBUTE_ID, Anime::ATTRIBUTE_ID)
             ->using(AnimeStudio::class)
+            ->as(AnimeStudioResource::$wrap)
             ->withTimestamps();
     }
 
     /**
      * Get the resources for the studio.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<ExternalResource, $this>
      */
     public function resources(): BelongsToMany
     {
         return $this->belongsToMany(ExternalResource::class, StudioResource::TABLE, Studio::ATTRIBUTE_ID, ExternalResource::ATTRIBUTE_ID)
-        ->using(StudioResource::class)
-        ->withPivot(StudioResource::ATTRIBUTE_AS)
-        ->withTimestamps();
+            ->using(StudioResource::class)
+            ->withPivot(StudioResource::ATTRIBUTE_AS)
+            ->as(StudioResourceResource::$wrap)
+            ->withTimestamps();
     }
 
     /**
      * Get the images for the studio.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Image, $this>
      */
     public function images(): BelongsToMany
     {
         return $this->belongsToMany(Image::class, StudioImage::TABLE, Studio::ATTRIBUTE_ID, Image::ATTRIBUTE_ID)
             ->using(StudioImage::class)
+            ->as(StudioImageResource::$wrap)
             ->withTimestamps();
     }
 }

@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Image;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Http\Api\Field\Field;
 use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Image\ImageReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\ImageSchema;
 use App\Http\Resources\Wiki\Resource\ImageResource;
 use App\Models\Wiki\Anime;
@@ -18,7 +19,7 @@ use App\Models\Wiki\Artist;
 use App\Models\Wiki\Image;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -27,7 +28,6 @@ use Tests\TestCase;
 class ImageShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Image Show Endpoint shall return an Image Resource.
@@ -43,7 +43,7 @@ class ImageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageResource($image, new ImageReadQuery()))
+                    new ImageResource($image, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -59,9 +59,7 @@ class ImageShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $image = Image::factory()->createOne();
-
-        $image->delete();
+        $image = Image::factory()->trashed()->createOne();
 
         $image->unsetRelations();
 
@@ -70,7 +68,7 @@ class ImageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageResource($image, new ImageReadQuery()))
+                    new ImageResource($image, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -108,7 +106,7 @@ class ImageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageResource($image, new ImageReadQuery($parameters)))
+                    new ImageResource($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -143,7 +141,47 @@ class ImageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageResource($image, new ImageReadQuery($parameters)))
+                    new ImageResource($image, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Image Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Image::RELATION_ANIME,
+        ];
+
+        $image = Image::factory()
+            ->has(Anime::factory()->count($this->faker->randomDigitNotNull()))
+            ->createOne();
+
+        $image->unsetRelations()->load([
+            Image::RELATION_ANIME => function (BelongsToMany $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.image.show', ['image' => $image] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new ImageResource($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -159,11 +197,11 @@ class ImageShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Image::RELATION_ANIME,
         ];
@@ -183,7 +221,7 @@ class ImageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageResource($image, new ImageReadQuery($parameters)))
+                    new ImageResource($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -230,7 +268,7 @@ class ImageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ImageResource($image, new ImageReadQuery($parameters)))
+                    new ImageResource($image, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

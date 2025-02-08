@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use ElasticAdapter\Indices\Mapping;
-use ElasticMigrations\Facades\Index;
-use ElasticMigrations\MigrationInterface;
+use Elastic\Adapter\Indices\Mapping;
+use Elastic\Migrations\Facades\Index;
+use Elastic\Migrations\MigrationInterface;
 
 /**
  * Class CreateVideoIndex.
@@ -84,6 +84,9 @@ final class CreateVideoIndex implements MigrationInterface
                                                 'type' => 'text',
                                                 'copy_to' => ['synonym_slug'],
                                             ],
+                                            'type' => [
+                                                'type' => 'long',
+                                            ],
                                             'updated_at' => [
                                                 'type' => 'date',
                                             ],
@@ -107,7 +110,27 @@ final class CreateVideoIndex implements MigrationInterface
                                 'type' => 'date',
                             ],
                             'group' => [
-                                'type' => 'text',
+                                'type' => 'nested',
+                                'properties' => [
+                                    'created_at' => [
+                                        'type' => 'date',
+                                    ],
+                                    'group_id' => [
+                                        'type' => 'long',
+                                    ],
+                                    'name' => [
+                                        'type' => 'text',
+                                    ],
+                                    'slug' => [
+                                        'type' => 'text',
+                                    ],
+                                    'updated_at' => [
+                                        'type' => 'date',
+                                    ],
+                                ],
+                            ],
+                            'group_id' => [
+                                'type' => 'long',
                             ],
                             'sequence' => [
                                 'type' => 'long',

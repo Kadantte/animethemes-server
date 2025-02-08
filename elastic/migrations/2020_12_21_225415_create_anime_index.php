@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use ElasticAdapter\Indices\Mapping;
-use ElasticMigrations\Facades\Index;
-use ElasticMigrations\MigrationInterface;
+use Elastic\Adapter\Indices\Mapping;
+use Elastic\Migrations\Facades\Index;
+use Elastic\Migrations\MigrationInterface;
 
 /**
  * Class CreateAnimeIndex.
@@ -27,6 +27,7 @@ final class CreateAnimeIndex implements MigrationInterface
                 ],
             ]);
             $mapping->long('season');
+            $mapping->long('media_format');
             $mapping->text('slug', [
                 'fields' => [
                     'keyword' => [
@@ -47,6 +48,9 @@ final class CreateAnimeIndex implements MigrationInterface
                     ],
                     'text' => [
                         'type' => 'text',
+                    ],
+                    'type' => [
+                        'type' => 'long',
                     ],
                     'updated_at' => [
                         'type' => 'date',

@@ -8,13 +8,14 @@ use App\Enums\Models\Wiki\ResourceSite;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Artist;
 use App\Models\Wiki\ExternalResource;
+use App\Models\Wiki\Song;
 use App\Models\Wiki\Studio;
-use App\Pivots\AnimeResource;
-use App\Pivots\ArtistResource;
-use App\Pivots\StudioResource;
+use App\Pivots\Wiki\AnimeResource;
+use App\Pivots\Wiki\ArtistResource;
+use App\Pivots\Wiki\SongResource;
+use App\Pivots\Wiki\StudioResource;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -39,20 +40,6 @@ class ExternalResourceTest extends TestCase
     }
 
     /**
-     * Resources shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $resource = ExternalResource::factory()->createOne();
-
-        static::assertEquals(1, $resource->audits()->count());
-    }
-
-    /**
      * Resources shall be nameable.
      *
      * @return void
@@ -62,6 +49,18 @@ class ExternalResourceTest extends TestCase
         $resource = ExternalResource::factory()->createOne();
 
         static::assertIsString($resource->getName());
+    }
+
+    /**
+     * Resources shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $resource = ExternalResource::factory()->createOne();
+
+        static::assertIsString($resource->getSubtitle());
     }
 
     /**
@@ -100,6 +99,23 @@ class ExternalResourceTest extends TestCase
         static::assertEquals($artistCount, $resource->artists()->count());
         static::assertInstanceOf(Artist::class, $resource->artists()->first());
         static::assertEquals(ArtistResource::class, $resource->artists()->getPivotClass());
+    }
+
+    /**
+     * Resource shall have a many-to-many relationship with the type Song.
+     */
+    public function testSong(): void
+    {
+        $songCount = $this->faker->randomDigitNotNull();
+
+        $resource = ExternalResource::factory()
+            ->has(Song::factory()->count($songCount))
+            ->createOne();
+
+        static::assertInstanceOf(BelongsToMany::class, $resource->songs());
+        static::assertEquals($songCount, $resource->songs()->count());
+        static::assertInstanceOf(Song::class, $resource->songs()->first());
+        static::assertEquals(SongResource::class, $resource->songs()->getPivotClass());
     }
 
     /**

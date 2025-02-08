@@ -4,30 +4,22 @@ declare(strict_types=1);
 
 namespace App\Http\Api\Schema\Wiki;
 
+use App\Contracts\Http\Api\Schema\SearchableSchema;
 use App\Http\Api\Field\Base\IdField;
 use App\Http\Api\Field\Field;
 use App\Http\Api\Field\Wiki\Series\SeriesNameField;
 use App\Http\Api\Field\Wiki\Series\SeriesSlugField;
 use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Schema\EloquentSchema;
+use App\Http\Api\Schema\Wiki\Anime\SynonymSchema;
 use App\Http\Resources\Wiki\Resource\SeriesResource;
 use App\Models\Wiki\Series;
 
 /**
  * Class SeriesSchema.
  */
-class SeriesSchema extends EloquentSchema
+class SeriesSchema extends EloquentSchema implements SearchableSchema
 {
-    /**
-     * The model this schema represents.
-     *
-     * @return string
-     */
-    public function model(): string
-    {
-        return Series::class;
-    }
-
     /**
      * Get the type of the resource.
      *
@@ -45,14 +37,19 @@ class SeriesSchema extends EloquentSchema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), Series::RELATION_ANIME),
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), Series::RELATION_ANIME),
 
-            // Undocumented paths needed for client builds
-            new AllowedInclude(new ImageSchema(), 'anime.images'),
-            new AllowedInclude(new VideoSchema(), 'anime.animethemes.animethemeentries.videos'),
-            new AllowedInclude(new SongSchema(), 'anime.animethemes.song'),
-        ];
+                // Undocumented paths needed for client builds
+                new AllowedInclude(new ImageSchema(), 'anime.images'),
+                new AllowedInclude(new VideoSchema(), 'anime.animethemes.animethemeentries.videos'),
+                new AllowedInclude(new GroupSchema(), 'anime.animethemes.group'),
+                new AllowedInclude(new SongSchema(), 'anime.animethemes.song'),
+                new AllowedInclude(new SynonymSchema(), 'anime.animesynonyms'),
+            ]),
+            []
+        );
     }
 
     /**
@@ -65,9 +62,9 @@ class SeriesSchema extends EloquentSchema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Series::ATTRIBUTE_ID),
-                new SeriesNameField(),
-                new SeriesSlugField(),
+                new IdField($this, Series::ATTRIBUTE_ID),
+                new SeriesNameField($this),
+                new SeriesSlugField($this),
             ],
         );
     }

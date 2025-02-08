@@ -4,98 +4,47 @@ declare(strict_types=1);
 
 namespace App\Policies\Wiki;
 
+use App\Enums\Auth\CrudPermission;
+use App\Enums\Auth\Role;
 use App\Models\Auth\User;
 use App\Models\Wiki\Anime;
+use App\Models\Wiki\Anime\AnimeSynonym;
+use App\Models\Wiki\Anime\AnimeTheme;
+use App\Models\Wiki\ExternalResource;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Series;
 use App\Models\Wiki\Studio;
-use App\Pivots\AnimeImage;
-use App\Pivots\AnimeSeries;
-use App\Pivots\AnimeStudio;
-use Illuminate\Auth\Access\HandlesAuthorization;
+use App\Pivots\Wiki\AnimeImage;
+use App\Pivots\Wiki\AnimeResource;
+use App\Pivots\Wiki\AnimeSeries;
+use App\Pivots\Wiki\AnimeStudio;
+use App\Policies\BasePolicy;
 
 /**
  * Class AnimePolicy.
  */
-class AnimePolicy
+class AnimePolicy extends BasePolicy
 {
-    use HandlesAuthorization;
-
     /**
-     * Determine whether the user can view any models.
+     * Determine whether the user can associate any synonym to the anime.
      *
      * @param  User  $user
      * @return bool
      */
-    public function viewAny(User $user): bool
+    public function addAnyAnimeSynonym(User $user): bool
     {
-        return $user->can('view anime');
+        return $user->can(CrudPermission::UPDATE->format(AnimeSynonym::class));
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Determine whether the user can associate any theme to the anime.
      *
      * @param  User  $user
      * @return bool
      */
-    public function view(User $user): bool
+    public function addAnyAnimeTheme(User $user): bool
     {
-        return $user->can('view anime');
-    }
-
-    /**
-     * Determine whether the user can create models.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function create(User $user): bool
-    {
-        return $user->can('create anime');
-    }
-
-    /**
-     * Determine whether the user can update the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function update(User $user): bool
-    {
-        return $user->can('update anime');
-    }
-
-    /**
-     * Determine whether the user can delete the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function delete(User $user): bool
-    {
-        return $user->can('delete anime');
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function restore(User $user): bool
-    {
-        return $user->can('restore anime');
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     *
-     * @param  User  $user
-     * @return bool
-     */
-    public function forceDelete(User $user): bool
-    {
-        return $user->can('force delete anime');
+        return $user->can(CrudPermission::UPDATE->format(AnimeTheme::class));
     }
 
     /**
@@ -106,7 +55,7 @@ class AnimePolicy
      */
     public function attachAnySeries(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::CREATE->format(Anime::class)) && $user->can(CrudPermission::CREATE->format(Series::class));
     }
 
     /**
@@ -120,22 +69,24 @@ class AnimePolicy
     public function attachSeries(User $user, Anime $anime, Series $series): bool
     {
         $attached = AnimeSeries::query()
-            ->where($anime->getKeyName(), $anime->getKey())
-            ->where($series->getKeyName(), $series->getKey())
+            ->where(AnimeSeries::ATTRIBUTE_ANIME, $anime->getKey())
+            ->where(AnimeSeries::ATTRIBUTE_SERIES, $series->getKey())
             ->exists();
 
-        return ! $attached && $user->can('update anime');
+        return !$attached
+            && $user->can(CrudPermission::CREATE->format(Anime::class))
+            && $user->can(CrudPermission::CREATE->format(Series::class));
     }
 
     /**
-     * Determine whether the user can detach a series from the anime.
+     * Determine whether the user can detach any series from the anime.
      *
      * @param  User  $user
      * @return bool
      */
-    public function detachSeries(User $user): bool
+    public function detachAnySeries(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::DELETE->format(Anime::class)) && $user->can(CrudPermission::DELETE->format(Series::class));
     }
 
     /**
@@ -146,29 +97,38 @@ class AnimePolicy
      */
     public function attachAnyExternalResource(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::CREATE->format(Anime::class)) && $user->can(CrudPermission::CREATE->format(ExternalResource::class));
     }
 
     /**
      * Determine whether the user can attach a resource to the anime.
      *
      * @param  User  $user
+     * @param  Anime  $anime
+     * @param  ExternalResource  $resource
      * @return bool
      */
-    public function attachExternalResource(User $user): bool
+    public function attachExternalResource(User $user, Anime $anime, ExternalResource $resource): bool
     {
-        return $user->can('update anime');
+        $attached = AnimeResource::query()
+            ->where(AnimeResource::ATTRIBUTE_ANIME, $anime->getKey())
+            ->where(AnimeResource::ATTRIBUTE_RESOURCE, $resource->getKey())
+            ->exists();
+
+        return !$attached
+            && $user->can(CrudPermission::CREATE->format(Anime::class))
+            && $user->can(CrudPermission::CREATE->format(ExternalResource::class));
     }
 
     /**
-     * Determine whether the user can detach a resource from the anime.
+     * Determine whether the user can detach any resource from the anime.
      *
      * @param  User  $user
      * @return bool
      */
-    public function detachExternalResource(User $user): bool
+    public function detachAnyExternalResource(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::DELETE->format(Anime::class)) && $user->can(CrudPermission::DELETE->format(ExternalResource::class));
     }
 
     /**
@@ -179,7 +139,7 @@ class AnimePolicy
      */
     public function attachAnyImage(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::CREATE->format(Anime::class)) && $user->can(CrudPermission::CREATE->format(Image::class));
     }
 
     /**
@@ -193,22 +153,24 @@ class AnimePolicy
     public function attachImage(User $user, Anime $anime, Image $image): bool
     {
         $attached = AnimeImage::query()
-            ->where($anime->getKeyName(), $anime->getKey())
-            ->where($image->getKeyName(), $image->getKey())
+            ->where(AnimeImage::ATTRIBUTE_ANIME, $anime->getKey())
+            ->where(AnimeImage::ATTRIBUTE_IMAGE, $image->getKey())
             ->exists();
 
-        return ! $attached && $user->can('update anime');
+        return !$attached
+            && $user->can(CrudPermission::CREATE->format(Anime::class))
+            && $user->can(CrudPermission::CREATE->format(Image::class));
     }
 
     /**
-     * Determine whether the user can detach an image from the anime.
+     * Determine whether the user can detach any image from the anime.
      *
      * @param  User  $user
      * @return bool
      */
-    public function detachImage(User $user): bool
+    public function detachAnyImage(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::DELETE->format(Anime::class)) && $user->can(CrudPermission::DELETE->format(Image::class));
     }
 
     /**
@@ -219,7 +181,7 @@ class AnimePolicy
      */
     public function attachAnyStudio(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::CREATE->format(Anime::class)) && $user->can(CrudPermission::CREATE->format(Studio::class));
     }
 
     /**
@@ -233,21 +195,34 @@ class AnimePolicy
     public function attachStudio(User $user, Anime $anime, Studio $studio): bool
     {
         $attached = AnimeStudio::query()
-            ->where($anime->getKeyName(), $anime->getKey())
-            ->where($studio->getKeyName(), $studio->getKey())
+            ->where(AnimeStudio::ATTRIBUTE_ANIME, $anime->getKey())
+            ->where(AnimeStudio::ATTRIBUTE_STUDIO, $studio->getKey())
             ->exists();
 
-        return ! $attached && $user->can('update anime');
+        return !$attached
+            && $user->can(CrudPermission::CREATE->format(Anime::class))
+            && $user->can(CrudPermission::CREATE->format(Studio::class));
     }
 
     /**
-     * Determine whether the user can detach a studio from the anime.
+     * Determine whether the user can detach any studio from the anime.
      *
      * @param  User  $user
      * @return bool
      */
-    public function detachStudio(User $user): bool
+    public function detachAnyStudio(User $user): bool
     {
-        return $user->can('update anime');
+        return $user->can(CrudPermission::DELETE->format(Anime::class)) && $user->can(CrudPermission::DELETE->format(Studio::class));
+    }
+
+    /**
+     * Determine whether the user can add an entry to the anime.
+     *
+     * @param  User  $user
+     * @return bool
+     */
+    public function addEntry(User $user): bool
+    {
+        return $user->hasRole(Role::ADMIN->value);
     }
 }

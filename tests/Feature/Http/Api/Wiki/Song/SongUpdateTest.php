@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Song;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Song;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class SongUpdateTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Song Update Endpoint shall be protected by sanctum.
      *
@@ -34,6 +32,46 @@ class SongUpdateTest extends TestCase
     }
 
     /**
+     * The Song Store Endpoint shall forbid users without the create song permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $song = Song::factory()->createOne();
+
+        $parameters = Song::factory()->raw();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.song.update', ['song' => $song] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Song Update Endpoint shall forbid users from updating a song that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $song = Song::factory()->trashed()->createOne();
+
+        $parameters = Song::factory()->raw();
+
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Song::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.song.update', ['song' => $song] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Song Update Endpoint shall update a song.
      *
      * @return void
@@ -44,7 +82,7 @@ class SongUpdateTest extends TestCase
 
         $parameters = Song::factory()->raw();
 
-        $user = User::factory()->withPermission('update song')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Song::class))->createOne();
 
         Sanctum::actingAs($user);
 

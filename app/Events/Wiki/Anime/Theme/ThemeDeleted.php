@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Events\Wiki\Anime\Theme;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Anime\Theme as ThemeFilament;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
-use App\Nova\Resources\Wiki\Anime\Theme as ThemeResource;
 
 /**
  * Class ThemeDeleted.
@@ -55,7 +55,7 @@ class ThemeDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -65,13 +65,13 @@ class ThemeDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = ThemeResource::uriKey();
+        $uriKey = ThemeFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Anime\Theme\Entry;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ThemeType;
 use App\Http\Api\Field\Field;
@@ -11,7 +12,7 @@ use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Anime\Theme\Entry\EntryReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\Anime\Theme\EntrySchema;
 use App\Http\Resources\Wiki\Anime\Theme\Resource\EntryResource;
 use App\Models\Wiki\Anime;
@@ -20,7 +21,7 @@ use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
 use App\Models\Wiki\Video;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -29,7 +30,6 @@ use Tests\TestCase;
 class EntryShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Entry Show Endpoint shall return an Entry Resource.
@@ -47,7 +47,7 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery()))
+                    new EntryResource($entry, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -64,10 +64,9 @@ class EntryShowTest extends TestCase
     public function testSoftDelete(): void
     {
         $entry = AnimeThemeEntry::factory()
+            ->trashed()
             ->for(AnimeTheme::factory()->for(Anime::factory()))
             ->createOne();
-
-        $entry->delete();
 
         $entry->unsetRelations();
 
@@ -76,7 +75,7 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery()))
+                    new EntryResource($entry, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -114,7 +113,7 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery($parameters)))
+                    new EntryResource($entry, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -151,7 +150,47 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery($parameters)))
+                    new EntryResource($entry, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Entry Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => AnimeThemeEntry::RELATION_ANIME,
+        ];
+
+        $entry = AnimeThemeEntry::factory()
+            ->for(AnimeTheme::factory()->for(Anime::factory()))
+            ->createOne();
+
+        $entry->unsetRelations()->load([
+            AnimeThemeEntry::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.animethemeentry.show', ['animethemeentry' => $entry] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new EntryResource($entry, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -167,11 +206,11 @@ class EntryShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => AnimeThemeEntry::RELATION_ANIME,
         ];
@@ -191,7 +230,7 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery($parameters)))
+                    new EntryResource($entry, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -239,54 +278,7 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery($parameters)))
-                        ->response()
-                        ->getData()
-                ),
-                true
-            )
-        );
-    }
-
-    /**
-     * The Entry Show Endpoint shall support constrained eager loading of themes by group.
-     *
-     * @return void
-     */
-    public function testThemesByGroup(): void
-    {
-        $groupFilter = $this->faker->word();
-        $excludedGroup = $this->faker->word();
-
-        $parameters = [
-            FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_GROUP => $groupFilter,
-            ],
-            IncludeParser::param() => AnimeThemeEntry::RELATION_THEME,
-        ];
-
-        $entry = AnimeThemeEntry::factory()
-            ->for(
-                AnimeTheme::factory()
-                    ->for(Anime::factory())
-                    ->state([
-                        AnimeTheme::ATTRIBUTE_GROUP => $this->faker->boolean() ? $groupFilter : $excludedGroup,
-                    ])
-            )
-            ->createOne();
-
-        $entry->unsetRelations()->load([
-            AnimeThemeEntry::RELATION_THEME => function (BelongsTo $query) use ($groupFilter) {
-                $query->where(AnimeTheme::ATTRIBUTE_GROUP, $groupFilter);
-            },
-        ]);
-
-        $response = $this->get(route('api.animethemeentry.show', ['animethemeentry' => $entry] + $parameters));
-
-        $response->assertJson(
-            json_decode(
-                json_encode(
-                    (new EntryResource($entry, new EntryReadQuery($parameters)))
+                    new EntryResource($entry, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -333,7 +325,7 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery($parameters)))
+                    new EntryResource($entry, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -349,11 +341,11 @@ class EntryShowTest extends TestCase
      */
     public function testThemesByType(): void
     {
-        $typeFilter = ThemeType::getRandomInstance();
+        $typeFilter = Arr::random(ThemeType::cases());
 
         $parameters = [
             FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->description,
+                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->localize(),
             ],
             IncludeParser::param() => AnimeThemeEntry::RELATION_THEME,
         ];
@@ -373,7 +365,7 @@ class EntryShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new EntryResource($entry, new EntryReadQuery($parameters)))
+                    new EntryResource($entry, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

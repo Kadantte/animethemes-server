@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Jobs\Wiki;
 
-use App\Constants\Config\FlagConstants;
+use App\Constants\FeatureConstants;
+use App\Events\Wiki\Series\SeriesCreated;
+use App\Events\Wiki\Series\SeriesDeleted;
+use App\Events\Wiki\Series\SeriesRestored;
+use App\Events\Wiki\Series\SeriesUpdated;
 use App\Jobs\SendDiscordNotificationJob;
 use App\Models\Wiki\Series;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
+use Laravel\Pennant\Feature;
 use Tests\TestCase;
 
 /**
@@ -23,8 +28,9 @@ class SeriesTest extends TestCase
      */
     public function testSeriesCreatedSendsDiscordNotification(): void
     {
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SeriesCreated::class);
 
         Series::factory()->createOne();
 
@@ -40,8 +46,9 @@ class SeriesTest extends TestCase
     {
         $series = Series::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SeriesDeleted::class);
 
         $series->delete();
 
@@ -57,8 +64,9 @@ class SeriesTest extends TestCase
     {
         $series = Series::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SeriesRestored::class);
 
         $series->restore();
 
@@ -74,8 +82,9 @@ class SeriesTest extends TestCase
     {
         $series = Series::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SeriesUpdated::class);
 
         $changes = Series::factory()->makeOne();
 

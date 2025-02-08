@@ -9,6 +9,7 @@ use App\Events\Wiki\Studio\StudioDeleted;
 use App\Events\Wiki\Studio\StudioRestored;
 use App\Events\Wiki\Studio\StudioUpdated;
 use App\Models\Wiki\Studio;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
@@ -24,8 +25,6 @@ class StudioTest extends TestCase
      */
     public function testStudioCreatedEventDispatched(): void
     {
-        Event::fake();
-
         Studio::factory()->createOne();
 
         Event::assertDispatched(StudioCreated::class);
@@ -38,8 +37,6 @@ class StudioTest extends TestCase
      */
     public function testStudioDeletedEventDispatched(): void
     {
-        Event::fake();
-
         $studio = Studio::factory()->createOne();
 
         $studio->delete();
@@ -54,8 +51,6 @@ class StudioTest extends TestCase
      */
     public function testStudioRestoredEventDispatched(): void
     {
-        Event::fake();
-
         $studio = Studio::factory()->createOne();
 
         $studio->restore();
@@ -72,8 +67,6 @@ class StudioTest extends TestCase
      */
     public function testStudioRestoresQuietly(): void
     {
-        Event::fake();
-
         $studio = Studio::factory()->createOne();
 
         $studio->restore();
@@ -88,8 +81,6 @@ class StudioTest extends TestCase
      */
     public function testStudioUpdatedEventDispatched(): void
     {
-        Event::fake();
-
         $studio = Studio::factory()->createOne();
         $changes = Studio::factory()->makeOne();
 
@@ -97,5 +88,25 @@ class StudioTest extends TestCase
         $studio->save();
 
         Event::assertDispatched(StudioUpdated::class);
+    }
+
+    /**
+     * The StudioUpdated event shall contain embed fields.
+     *
+     * @return void
+     */
+    public function testStudioUpdatedEventEmbedFields(): void
+    {
+        $studio = Studio::factory()->createOne();
+        $changes = Studio::factory()->makeOne();
+
+        $studio->fill($changes->getAttributes());
+        $studio->save();
+
+        Event::assertDispatched(StudioUpdated::class, function (StudioUpdated $event) {
+            $message = $event->getDiscordMessage();
+
+            return ! empty(Arr::get($message->embed, 'fields'));
+        });
     }
 }

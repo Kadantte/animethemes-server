@@ -6,9 +6,9 @@ namespace App\Events\Wiki\Anime\Theme\Entry;
 
 use App\Contracts\Events\UpdateRelatedIndicesEvent;
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Anime\Theme\Entry as EntryFilament;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
 use App\Models\Wiki\Video;
-use App\Nova\Resources\Wiki\Anime\Theme\Entry as EntryResource;
 
 /**
  * Class EntryDeleted.
@@ -48,7 +48,7 @@ class EntryDeleted extends WikiDeletedEvent implements UpdateRelatedIndicesEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -58,13 +58,13 @@ class EntryDeleted extends WikiDeletedEvent implements UpdateRelatedIndicesEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = EntryResource::uriKey();
+        $uriKey = EntryFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

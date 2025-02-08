@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Document\Page;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Document\Page;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class PageStoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Page Store Endpoint shall be protected by sanctum.
      *
@@ -32,13 +30,31 @@ class PageStoreTest extends TestCase
     }
 
     /**
+     * The Page Store Endpoint shall forbid users without the create page permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $page = Page::factory()->makeOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->post(route('api.page.store', $page->toArray()));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Page Store Endpoint shall require body, name & slug fields.
      *
      * @return void
      */
     public function testRequiredFields(): void
     {
-        $user = User::factory()->withPermission('create page')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(Page::class))->createOne();
 
         Sanctum::actingAs($user);
 
@@ -60,13 +76,13 @@ class PageStoreTest extends TestCase
     {
         $parameters = Page::factory()->raw();
 
-        $user = User::factory()->withPermission('create page')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(Page::class))->createOne();
 
         Sanctum::actingAs($user);
 
         $response = $this->post(route('api.page.store', $parameters));
 
         $response->assertCreated();
-        static::assertDatabaseCount(Page::TABLE, 1);
+        static::assertDatabaseCount(Page::class, 1);
     }
 }

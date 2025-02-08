@@ -13,7 +13,8 @@ use NotificationChannels\Discord\DiscordMessage;
 /**
  * Class BaseDeletedEvent.
  *
- * @template TModel of \App\Models\BaseModel
+ * @template TModel of \Illuminate\Database\Eloquent\Model
+ *
  * @extends BaseEvent<TModel>
  */
 abstract class BaseDeletedEvent extends BaseEvent implements DiscordMessageEvent
@@ -27,10 +28,25 @@ abstract class BaseDeletedEvent extends BaseEvent implements DiscordMessageEvent
      */
     public function getDiscordMessage(): DiscordMessage
     {
-        return DiscordMessage::create('', [
-            'description' => $this->getDiscordMessageDescription(),
-            'color' => EmbedColor::RED,
-        ]);
+        $embed = array_merge(
+            [
+                'description' => $this->getDiscordMessageDescription(),
+                'color' => EmbedColor::RED->value,
+            ],
+            $this->getUserFooter(),
+        );
+
+        return DiscordMessage::create('', $embed);
+    }
+
+    /**
+     * Determine if the message should be sent.
+     *
+     * @return bool
+     */
+    public function shouldSendDiscordMessage(): bool
+    {
+        return true;
     }
 
     /**

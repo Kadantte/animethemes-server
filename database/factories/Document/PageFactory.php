@@ -28,14 +28,14 @@ class PageFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
         return [
-            Page::ATTRIBUTE_BODY => $this->faker->sentences(3, true),
-            Page::ATTRIBUTE_NAME => $this->faker->words(3, true),
-            Page::ATTRIBUTE_SLUG => Str::slug($this->faker->text(191), '_'),
+            Page::ATTRIBUTE_BODY => fake()->sentences(3, true),
+            Page::ATTRIBUTE_NAME => fake()->words(3, true),
+            Page::ATTRIBUTE_SLUG => Str::slug(fake()->text(191), '_'),
         ];
     }
 }

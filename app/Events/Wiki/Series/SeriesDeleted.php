@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Events\Wiki\Series;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Series as SeriesFilament;
 use App\Models\Wiki\Series;
-use App\Nova\Resources\Wiki\Series as SeriesResource;
 
 /**
  * Class SeriesDeleted.
@@ -46,7 +46,7 @@ class SeriesDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -56,13 +56,13 @@ class SeriesDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = SeriesResource::uriKey();
+        $uriKey = SeriesFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

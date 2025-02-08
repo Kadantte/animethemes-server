@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\Filament\ActionLogs\ModelHasActionLogs;
+use App\Contracts\Models\HasSubtitle;
 use App\Contracts\Models\Nameable;
 use App\Enums\Http\Api\Filter\ComparisonOperator;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use OwenIt\Auditing\Contracts\Auditable;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Str;
 
 /**
  * Class BaseModel.
@@ -21,13 +23,14 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property Carbon $created_at
  * @property Carbon $deleted_at
  * @property Carbon $updated_at
+ *
  */
-abstract class BaseModel extends Model implements Auditable, Nameable
+abstract class BaseModel extends Model implements Nameable, HasSubtitle
 {
+    use ModelHasActionLogs;
     use HasFactory;
     use Prunable;
     use SoftDeletes;
-    use \OwenIt\Auditing\Auditable;
 
     /**
      * The storage format of the model's date columns.
@@ -41,19 +44,21 @@ abstract class BaseModel extends Model implements Auditable, Nameable
     final public const ATTRIBUTE_UPDATED_AT = Model::UPDATED_AT;
 
     /**
-     * Retrieve the model for a bound value.
+     * Create a new Eloquent model instance.
      *
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return Model|null
-     *
-     * @noinspection PhpMissingParentCallCommonInspection
+     * @param  array  $attributes
      */
-    public function resolveRouteBinding($value, $field = null): ?Model
+    public function __construct(array $attributes = [])
     {
-        return $this->newQuery()->where($field ?? $this->getRouteKeyName(), $value)
-            ->withoutGlobalScope(SoftDeletingScope::class)
-            ->first();
+        parent::__construct($attributes);
+
+        $connectionKey = Str::of('database.models.')
+            ->append(static::class)
+            ->__toString();
+
+        if (Config::has($connectionKey)) {
+            $this->setConnection(Config::get($connectionKey));
+        }
     }
 
     /**
@@ -92,6 +97,10 @@ abstract class BaseModel extends Model implements Auditable, Nameable
      */
     public function prunable(): Builder
     {
-        return static::onlyTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, ComparisonOperator::LTE, now()->subWeek());
+        return static::onlyTrashed()->where(
+            BaseModel::ATTRIBUTE_DELETED_AT,
+            ComparisonOperator::LTE->value,
+            now()->subWeek()
+        );
     }
 }

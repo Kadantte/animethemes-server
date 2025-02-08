@@ -31,9 +31,9 @@ abstract class Schema implements SchemaInterface
     public function fields(): array
     {
         return [
-            new CreatedAtField(),
-            new UpdatedAtField(),
-            new DeletedAtField(),
+            new CreatedAtField($this),
+            new UpdatedAtField($this),
+            new DeletedAtField($this),
         ];
     }
 
@@ -75,6 +75,14 @@ abstract class Schema implements SchemaInterface
     {
         $relationInclude = Arr::first($this->allowedIncludes(), fn (AllowedInclude $include) => $include->path() === $path);
 
+        /** @phpstan-ignore-next-line */
         return $relationInclude?->schema();
     }
+
+    /**
+     * Get the allowed includes.
+     *
+     * @return AllowedInclude[]
+     */
+    abstract public function allowedIncludes(): array;
 }

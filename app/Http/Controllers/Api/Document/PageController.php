@@ -4,123 +4,140 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Document;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Document\Page\PageDestroyRequest;
-use App\Http\Requests\Api\Document\Page\PageForceDeleteRequest;
-use App\Http\Requests\Api\Document\Page\PageIndexRequest;
-use App\Http\Requests\Api\Document\Page\PageRestoreRequest;
-use App\Http\Requests\Api\Document\Page\PageShowRequest;
-use App\Http\Requests\Api\Document\Page\PageStoreRequest;
-use App\Http\Requests\Api\Document\Page\PageUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Document\Collection\PageCollection;
+use App\Http\Resources\Document\Resource\PageResource;
 use App\Models\Document\Page;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
-use Spatie\RouteDiscovery\Attributes\Where;
 
 /**
  * Class PageController.
  */
-#[Where('page', constraint: '[\pL\pM\pN\/_-]+')]
-class PageController extends Controller
+class PageController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Page::class, 'page');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  PageIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return PageCollection
      */
-    #[Route(fullUri: 'page', name: 'page.index')]
-    public function index(PageIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): PageCollection
     {
-        $pages = $request->getQuery()->index();
+        $query = new Query($request->validated());
 
-        return $pages->toResponse($request);
+        $pages = $action->index(Page::query(), $query, $request->schema());
+
+        return new PageCollection($pages, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  PageStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return PageResource
      */
-    #[Route(fullUri: 'page', name: 'page.store', middleware: 'auth:sanctum')]
-    public function store(PageStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): PageResource
     {
-        $resource = $request->getQuery()->store();
+        $page = $action->store(Page::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new PageResource($page, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  PageShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Page  $page
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return PageResource
      */
-    #[Route(fullUri: 'page/{page}', name: 'page.show')]
-    public function show(PageShowRequest $request, Page $page): JsonResponse
+    public function show(ShowRequest $request, Page $page, ShowAction $action): PageResource
     {
-        $resource = $request->getQuery()->show($page);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($page, $query, $request->schema());
+
+        return new PageResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  PageUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Page  $page
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return PageResource
      */
-    #[Route(fullUri: 'page/{page}', name: 'page.update', middleware: 'auth:sanctum')]
-    public function update(PageUpdateRequest $request, Page $page): JsonResponse
+    public function update(UpdateRequest $request, Page $page, UpdateAction $action): PageResource
     {
-        $resource = $request->getQuery()->update($page);
+        $updated = $action->update($page, $request->validated());
 
-        return $resource->toResponse($request);
+        return new PageResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  PageDestroyRequest  $request
      * @param  Page  $page
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return PageResource
      */
-    #[Route(fullUri: 'page/{page}', name: 'page.destroy', middleware: 'auth:sanctum')]
-    public function destroy(PageDestroyRequest $request, Page $page): JsonResponse
+    public function destroy(Page $page, DestroyAction $action): PageResource
     {
-        $resource = $request->getQuery()->destroy($page);
+        $deleted = $action->destroy($page);
 
-        return $resource->toResponse($request);
+        return new PageResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  PageRestoreRequest  $request
      * @param  Page  $page
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return PageResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/page/{page}', name: 'page.restore', middleware: 'auth:sanctum')]
-    public function restore(PageRestoreRequest $request, Page $page): JsonResponse
+    public function restore(Page $page, RestoreAction $action): PageResource
     {
-        $resource = $request->getQuery()->restore($page);
+        $restored = $action->restore($page);
 
-        return $resource->toResponse($request);
+        return new PageResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  PageForceDeleteRequest  $request
      * @param  Page  $page
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/page/{page}', name: 'page.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(PageForceDeleteRequest $request, Page $page): JsonResponse
+    public function forceDelete(Page $page, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($page);
+        $message = $action->forceDelete($page);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

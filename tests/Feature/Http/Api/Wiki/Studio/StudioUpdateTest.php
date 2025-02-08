@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Studio;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Studio;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class StudioUpdateTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Studio Update Endpoint shall be protected by sanctum.
      *
@@ -34,6 +32,46 @@ class StudioUpdateTest extends TestCase
     }
 
     /**
+     * The Studio Update Endpoint shall forbid users without the update studio permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $studio = Studio::factory()->createOne();
+
+        $parameters = Studio::factory()->raw();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.studio.update', ['studio' => $studio] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Studio Update Endpoint shall forbid users from updating a studio that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $studio = Studio::factory()->trashed()->createOne();
+
+        $parameters = Studio::factory()->raw();
+
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Studio::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.studio.update', ['studio' => $studio] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Studio Update Endpoint shall update a studio.
      *
      * @return void
@@ -44,7 +82,7 @@ class StudioUpdateTest extends TestCase
 
         $parameters = Studio::factory()->raw();
 
-        $user = User::factory()->withPermission('update studio')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Studio::class))->createOne();
 
         Sanctum::actingAs($user);
 

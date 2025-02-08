@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Series;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Http\Api\Field\Field;
 use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Series\SeriesReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\SeriesSchema;
 use App\Http\Resources\Wiki\Resource\SeriesResource;
 use App\Models\Wiki\Anime;
@@ -18,7 +19,7 @@ use App\Models\Wiki\Series;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -27,7 +28,6 @@ use Tests\TestCase;
 class SeriesShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Series Show Endpoint shall return a Series Resource.
@@ -43,7 +43,7 @@ class SeriesShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SeriesResource($series, new SeriesReadQuery()))
+                    new SeriesResource($series, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -59,9 +59,7 @@ class SeriesShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $series = Series::factory()->createOne();
-
-        $series->delete();
+        $series = Series::factory()->trashed()->createOne();
 
         $series->unsetRelations();
 
@@ -70,7 +68,7 @@ class SeriesShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SeriesResource($series, new SeriesReadQuery()))
+                    new SeriesResource($series, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -107,7 +105,7 @@ class SeriesShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SeriesResource($series, new SeriesReadQuery($parameters)))
+                    new SeriesResource($series, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -142,7 +140,47 @@ class SeriesShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SeriesResource($series, new SeriesReadQuery($parameters)))
+                    new SeriesResource($series, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Series Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Series::RELATION_ANIME,
+        ];
+
+        $series = Series::factory()
+            ->has(Anime::factory()->count($this->faker->randomDigitNotNull()))
+            ->createOne();
+
+        $series->unsetRelations()->load([
+            Series::RELATION_ANIME => function (BelongsToMany $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.series.show', ['series' => $series] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new SeriesResource($series, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -158,11 +196,11 @@ class SeriesShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Series::RELATION_ANIME,
         ];
@@ -182,7 +220,7 @@ class SeriesShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SeriesResource($series, new SeriesReadQuery($parameters)))
+                    new SeriesResource($series, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -230,7 +268,7 @@ class SeriesShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SeriesResource($series, new SeriesReadQuery($parameters)))
+                    new SeriesResource($series, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

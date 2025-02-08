@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Anime\Synonym;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -16,8 +16,6 @@ use Tests\TestCase;
  */
 class SynonymStoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Synonym Store Endpoint shall be protected by sanctum.
      *
@@ -33,13 +31,31 @@ class SynonymStoreTest extends TestCase
     }
 
     /**
+     * The Synonym Store Endpoint shall forbid users without the create anime synonym permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $synonym = AnimeSynonym::factory()->for(Anime::factory())->makeOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->post(route('api.animesynonym.store', $synonym->toArray()));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Synonym Store Endpoint shall require the text field.
      *
      * @return void
      */
     public function testRequiredFields(): void
     {
-        $user = User::factory()->withPermission('create anime synonym')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(AnimeSynonym::class))->createOne();
 
         Sanctum::actingAs($user);
 
@@ -64,13 +80,13 @@ class SynonymStoreTest extends TestCase
             [AnimeSynonym::ATTRIBUTE_ANIME => $anime->getKey()],
         );
 
-        $user = User::factory()->withPermission('create anime synonym')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(AnimeSynonym::class))->createOne();
 
         Sanctum::actingAs($user);
 
         $response = $this->post(route('api.animesynonym.store', $parameters));
 
         $response->assertCreated();
-        static::assertDatabaseCount(AnimeSynonym::TABLE, 1);
+        static::assertDatabaseCount(AnimeSynonym::class, 1);
     }
 }

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Anime\Synonym;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -16,8 +16,6 @@ use Tests\TestCase;
  */
 class SynonymDestroyTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Synonym Destroy Endpoint shall be protected by sanctum.
      *
@@ -33,6 +31,45 @@ class SynonymDestroyTest extends TestCase
     }
 
     /**
+     * The Synonym Destroy Endpoint shall forbid users without the delete anime synonym permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $synonym = AnimeSynonym::factory()->for(Anime::factory())->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.animesynonym.destroy', ['animesynonym' => $synonym]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Synonym Destroy Endpoint shall forbid users from updating an anime synonym that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $synonym = AnimeSynonym::factory()
+            ->trashed()
+            ->for(Anime::factory())
+            ->createOne();
+
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(AnimeSynonym::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.animesynonym.destroy', ['animesynonym' => $synonym]));
+
+        $response->assertNotFound();
+    }
+
+    /**
      * The Synonym Destroy Endpoint shall delete the synonym.
      *
      * @return void
@@ -41,7 +78,7 @@ class SynonymDestroyTest extends TestCase
     {
         $synonym = AnimeSynonym::factory()->for(Anime::factory())->createOne();
 
-        $user = User::factory()->withPermission('delete anime synonym')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(AnimeSynonym::class))->createOne();
 
         Sanctum::actingAs($user);
 

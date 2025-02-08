@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Events\Wiki\Artist;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Artist as ArtistFilament;
 use App\Models\Wiki\Artist;
-use App\Nova\Resources\Wiki\Artist as ArtistResource;
 
 /**
  * Class ArtistDeleted.
@@ -46,7 +46,7 @@ class ArtistDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -56,13 +56,13 @@ class ArtistDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = ArtistResource::uriKey();
+        $uriKey = ArtistFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

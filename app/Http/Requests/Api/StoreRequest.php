@@ -11,18 +11,8 @@ use Illuminate\Support\Arr;
 /**
  * Class StoreRequest.
  */
-abstract class StoreRequest extends WriteRequest
+class StoreRequest extends WriteRequest
 {
-    /**
-     * The policy ability to authorize.
-     *
-     * @return string
-     */
-    protected function ability(): string
-    {
-        return 'create';
-    }
-
     /**
      * Get the validation rules that apply to the request.
      *

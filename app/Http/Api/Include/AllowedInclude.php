@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Api\Include;
 
 use App\Contracts\Http\Api\Schema\SchemaInterface;
+use Illuminate\Support\Str;
 
 /**
  * Class AllowedInclude.
  */
-class AllowedInclude
+readonly class AllowedInclude
 {
     /**
      * Create a new AllowedIncludePath instance.
@@ -17,7 +18,7 @@ class AllowedInclude
      * @param  SchemaInterface  $schema
      * @param  string  $path
      */
-    final public function __construct(protected readonly SchemaInterface $schema, protected readonly string $path)
+    final public function __construct(protected SchemaInterface $schema, protected string $path)
     {
     }
 
@@ -39,5 +40,15 @@ class AllowedInclude
     public function path(): string
     {
         return $this->path;
+    }
+
+    /**
+     * Determine if the allowed include is a direct relation for the schema.
+     *
+     * @return bool
+     */
+    public function isDirectRelation(): bool
+    {
+        return ! Str::of($this->path)->contains('.');
     }
 }

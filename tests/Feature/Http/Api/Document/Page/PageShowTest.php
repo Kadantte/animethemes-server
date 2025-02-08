@@ -6,12 +6,11 @@ namespace Tests\Feature\Http\Api\Document\Page;
 
 use App\Http\Api\Field\Field;
 use App\Http\Api\Parser\FieldParser;
-use App\Http\Api\Query\Document\Page\PageReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Document\PageSchema;
 use App\Http\Resources\Document\Resource\PageResource;
 use App\Models\Document\Page;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Tests\TestCase;
 
 /**
@@ -20,7 +19,6 @@ use Tests\TestCase;
 class PageShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Page Show Endpoint shall return a Page Resource.
@@ -36,7 +34,7 @@ class PageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageResource($page, new PageReadQuery()))
+                    new PageResource($page, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -52,9 +50,7 @@ class PageShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $page = Page::factory()->createOne();
-
-        $page->delete();
+        $page = Page::factory()->trashed()->createOne();
 
         $page->unsetRelations();
 
@@ -63,7 +59,7 @@ class PageShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageResource($page, new PageReadQuery()))
+                    new PageResource($page, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -93,12 +89,12 @@ class PageShowTest extends TestCase
 
         $page = Page::factory()->create();
 
-        $response = $this->get(route('api.page.show', ['page' => $page]));
+        $response = $this->get(route('api.page.show', ['page' => $page] + $parameters));
 
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageResource($page, new PageReadQuery($parameters)))
+                    new PageResource($page, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

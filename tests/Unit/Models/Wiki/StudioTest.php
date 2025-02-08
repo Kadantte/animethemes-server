@@ -8,12 +8,11 @@ use App\Models\Wiki\Anime;
 use App\Models\Wiki\ExternalResource;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Studio;
-use App\Pivots\AnimeStudio;
-use App\Pivots\StudioImage;
-use App\Pivots\StudioResource;
+use App\Pivots\Wiki\AnimeStudio;
+use App\Pivots\Wiki\StudioImage;
+use App\Pivots\Wiki\StudioResource;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -48,20 +47,6 @@ class StudioTest extends TestCase
     }
 
     /**
-     * Studio shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $studio = Studio::factory()->createOne();
-
-        static::assertEquals(1, $studio->audits()->count());
-    }
-
-    /**
      * Studio shall be nameable.
      *
      * @return void
@@ -71,6 +56,18 @@ class StudioTest extends TestCase
         $studio = Studio::factory()->createOne();
 
         static::assertIsString($studio->getName());
+    }
+
+    /**
+     * Studio shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $studio = Studio::factory()->createOne();
+
+        static::assertIsString($studio->getSubtitle());
     }
 
     /**

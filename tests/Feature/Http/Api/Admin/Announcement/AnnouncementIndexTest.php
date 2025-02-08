@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Admin\Announcement;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
@@ -15,15 +16,16 @@ use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Admin\AnnouncementReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Admin\AnnouncementSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Admin\Collection\AnnouncementCollection;
 use App\Http\Resources\Admin\Resource\AnnouncementResource;
 use App\Models\Admin\Announcement;
 use App\Models\BaseModel;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -31,8 +33,8 @@ use Tests\TestCase;
  */
 class AnnouncementIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Announcement Index Endpoint shall return a collection of Announcement Resources.
@@ -48,7 +50,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcements, new AnnouncementReadQuery()))
+                    new AnnouncementCollection($announcements, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -101,7 +103,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcements, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementCollection($announcements, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -119,25 +121,28 @@ class AnnouncementIndexTest extends TestCase
     {
         $schema = new AnnouncementSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new AnnouncementReadQuery($parameters);
+        $query = new Query($parameters);
 
         Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
 
         $response = $this->get(route('api.announcement.index', $parameters));
 
+        $announcements = $this->sort(Announcement::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new AnnouncementCollection($announcements, $query)
                         ->response()
                         ->getData()
                 ),
@@ -180,7 +185,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcement, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementCollection($announcement, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -223,7 +228,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcement, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementCollection($announcement, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -241,7 +246,7 @@ class AnnouncementIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -250,10 +255,7 @@ class AnnouncementIndexTest extends TestCase
 
         Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteAnnouncement = Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteAnnouncement->each(function (Announcement $announcement) {
-            $announcement->delete();
-        });
+        Announcement::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $announcement = Announcement::withoutTrashed()->get();
 
@@ -262,7 +264,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcement, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementCollection($announcement, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -280,7 +282,7 @@ class AnnouncementIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -289,10 +291,7 @@ class AnnouncementIndexTest extends TestCase
 
         Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteAnnouncement = Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteAnnouncement->each(function (Announcement $announcement) {
-            $announcement->delete();
-        });
+        Announcement::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $announcement = Announcement::withTrashed()->get();
 
@@ -301,7 +300,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcement, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementCollection($announcement, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -319,7 +318,7 @@ class AnnouncementIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -328,10 +327,7 @@ class AnnouncementIndexTest extends TestCase
 
         Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteAnnouncement = Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteAnnouncement->each(function (Announcement $announcement) {
-            $announcement->delete();
-        });
+        Announcement::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $announcement = Announcement::onlyTrashed()->get();
 
@@ -340,7 +336,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcement, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementCollection($announcement, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -362,7 +358,7 @@ class AnnouncementIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -370,17 +366,11 @@ class AnnouncementIndexTest extends TestCase
         ];
 
         Carbon::withTestNow($deletedFilter, function () {
-            $announcements = Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
-            $announcements->each(function (Announcement $announcement) {
-                $announcement->delete();
-            });
+            Announcement::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         Carbon::withTestNow($excludedDate, function () {
-            $announcements = Announcement::factory()->count($this->faker->randomDigitNotNull())->create();
-            $announcements->each(function (Announcement $announcement) {
-                $announcement->delete();
-            });
+            Announcement::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         $announcement = Announcement::withTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, $deletedFilter)->get();
@@ -390,7 +380,7 @@ class AnnouncementIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementCollection($announcement, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementCollection($announcement, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

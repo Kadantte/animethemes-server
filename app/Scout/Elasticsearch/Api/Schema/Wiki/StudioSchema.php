@@ -13,6 +13,8 @@ use App\Scout\Elasticsearch\Api\Field\Base\IdField;
 use App\Scout\Elasticsearch\Api\Field\Field;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Studio\StudioNameField;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Studio\StudioSlugField;
+use App\Scout\Elasticsearch\Api\Query\ElasticQuery;
+use App\Scout\Elasticsearch\Api\Query\Wiki\StudioQuery;
 use App\Scout\Elasticsearch\Api\Schema\Schema;
 
 /**
@@ -23,11 +25,11 @@ class StudioSchema extends Schema
     /**
      * The model this schema represents.
      *
-     * @return string
+     * @return ElasticQuery
      */
-    public function model(): string
+    public function query(): ElasticQuery
     {
-        return Studio::class;
+        return new StudioQuery();
     }
 
     /**
@@ -47,11 +49,14 @@ class StudioSchema extends Schema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), Studio::RELATION_ANIME),
-            new AllowedInclude(new ExternalResourceSchema(), Studio::RELATION_RESOURCES),
-            new AllowedInclude(new ImageSchema(), Studio::RELATION_IMAGES),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), Studio::RELATION_ANIME),
+                new AllowedInclude(new ExternalResourceSchema(), Studio::RELATION_RESOURCES),
+                new AllowedInclude(new ImageSchema(), Studio::RELATION_IMAGES),
+            ]),
+            []
+        );
     }
 
     /**
@@ -64,9 +69,9 @@ class StudioSchema extends Schema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Studio::ATTRIBUTE_ID),
-                new StudioNameField(),
-                new StudioSlugField(),
+                new IdField($this, Studio::ATTRIBUTE_ID),
+                new StudioNameField($this),
+                new StudioSlugField($this),
             ],
         );
     }

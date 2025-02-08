@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Document\Page;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Auth\User;
 use App\Models\Document\Page;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class PageRestoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Page Restore Endpoint shall be protected by sanctum.
      *
@@ -24,13 +22,47 @@ class PageRestoreTest extends TestCase
      */
     public function testProtected(): void
     {
-        $page = Page::factory()->createOne();
-
-        $page->delete();
+        $page = Page::factory()->trashed()->createOne();
 
         $response = $this->patch(route('api.page.restore', ['page' => $page]));
 
         $response->assertUnauthorized();
+    }
+
+    /**
+     * The Page Restore Endpoint shall forbid users without the restore page permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $page = Page::factory()->trashed()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.page.restore', ['page' => $page]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Page Restore Endpoint shall forbid users from restoring a page that isn't trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $page = Page::factory()->createOne();
+
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Page::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.page.restore', ['page' => $page]));
+
+        $response->assertForbidden();
     }
 
     /**
@@ -40,11 +72,9 @@ class PageRestoreTest extends TestCase
      */
     public function testRestored(): void
     {
-        $page = Page::factory()->createOne();
+        $page = Page::factory()->trashed()->createOne();
 
-        $page->delete();
-
-        $user = User::factory()->withPermission('restore page')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Page::class))->createOne();
 
         Sanctum::actingAs($user);
 

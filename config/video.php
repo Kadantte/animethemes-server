@@ -2,7 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Enums\Http\StreamingMethod;
+
 return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Video Disks
+    |--------------------------------------------------------------------------
+    |
+    | The filesystem disks where videos are hosted. By default, it is assumed
+    | that the default video disk is an S3-like bucket.
+    |
+    */
+
+    'default_disk' => env('VIDEO_DISK_DEFAULT', 'videos'),
+
+    'disks' => explode(',', env('VIDEO_DISKS', [])),
 
     /*
     |--------------------------------------------------------------------------
@@ -21,4 +37,64 @@ return [
     'url' => env('VIDEO_URL'),
 
     'path' => env('VIDEO_PATH'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Video Streaming
+    |--------------------------------------------------------------------------
+    |
+    | These values represent the method by which video is streamed.
+    | The first supported method of streaming is through a streamed response ("response").
+    | The second supported method of streaming is through a Nginx internal redirect ("nginx").
+    | A Nginx internal redirect requires a URI to match the location block.
+    |
+    */
+
+    'streaming_method' => env('VIDEO_STREAMING_METHOD', StreamingMethod::RESPONSE->value),
+
+    'nginx_redirect' => env('VIDEO_NGINX_REDIRECT', '/video_redirect/'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Video Scripts
+    |--------------------------------------------------------------------------
+    |
+    | Scripts represent the encoding script used to produce a video.
+    | Generally, a script file will be a list of FFmpeg commands
+    | to be executed in a target runtime environment.
+    |
+    */
+
+    'script' => [
+
+        /*
+        |--------------------------------------------------------------------------
+        | Script Disk
+        |--------------------------------------------------------------------------
+        |
+        | The filesystem disk where video scripts are hosted. By default, it is assumed
+        | that video scripts are hosted in an S3-like bucket.
+        |
+        */
+
+        'disk' => env('SCRIPT_DISK', 'scripts'),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Script Domain
+        |--------------------------------------------------------------------------
+        |
+        | These values represent the base URL that video scripts are downloaded from.
+        | It is most likely that only one of these values should be set.
+        | If scripts are downloaded from a subdomain, set SCRIPT_URL and leave SCRIPT_PATH null.
+        | Ex: script.animethemes.test
+        | If scripts are NOT downloaded from a subdomain, set SCRIPT_PATH and leave SCRIPT_URL null.
+        | Ex: animethemes.test/videoscript
+        |
+        */
+
+        'url' => env('SCRIPT_URL'),
+
+        'path' => env('SCRIPT_PATH'),
+    ],
 ];

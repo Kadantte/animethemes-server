@@ -7,6 +7,7 @@ namespace App\Http\Api\Field\Wiki\Series;
 use App\Contracts\Http\Api\Field\CreatableField;
 use App\Contracts\Http\Api\Field\UpdatableField;
 use App\Http\Api\Field\StringField;
+use App\Http\Api\Schema\Schema;
 use App\Models\Wiki\Series;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,10 +19,12 @@ class SeriesSlugField extends StringField implements CreatableField, UpdatableFi
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(Series::ATTRIBUTE_SLUG);
+        parent::__construct($schema, Series::ATTRIBUTE_SLUG);
     }
 
     /**
@@ -36,7 +39,7 @@ class SeriesSlugField extends StringField implements CreatableField, UpdatableFi
             'required',
             'max:192',
             'alpha_dash',
-            Rule::unique(Series::TABLE),
+            Rule::unique(Series::class),
         ];
     }
 
@@ -53,7 +56,7 @@ class SeriesSlugField extends StringField implements CreatableField, UpdatableFi
             'required',
             'max:192',
             'alpha_dash',
-            Rule::unique(Series::TABLE)->ignore($request->route('series'), Series::ATTRIBUTE_ID),
+            Rule::unique(Series::class)->ignore($request->route('series'), Series::ATTRIBUTE_ID),
         ];
     }
 }

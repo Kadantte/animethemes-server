@@ -4,18 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http;
 
-use App\Http\Middleware\Authenticate;
-use App\Http\Middleware\HasOpenInvitation;
-use App\Http\Middleware\IsVideoStreamingAllowed;
+use App\Http\Middleware\Api\SetAcceptJsonHeader;
+use App\Http\Middleware\Auth\Authenticate;
+use App\Http\Middleware\Auth\RedirectIfAuthenticated;
 use App\Http\Middleware\LogRequest;
-use App\Http\Middleware\RecordView;
-use App\Http\Middleware\RedirectIfAuthenticated;
-use App\Http\Middleware\SetAcceptJsonHeader;
+use App\Http\Middleware\Models\RecordView;
 use App\Http\Middleware\ThrottleRequestsWithService;
 use App\Http\Middleware\TrimStrings;
 use App\Http\Middleware\TrustHosts;
 use App\Http\Middleware\TrustProxies;
-use App\Http\Middleware\WithoutTrashed;
 use Bepsvpt\SecureHeaders\SecureHeadersMiddleware;
 use Illuminate\Auth\Middleware\AuthenticateWithBasicAuth;
 use Illuminate\Auth\Middleware\Authorize;
@@ -35,6 +32,7 @@ use Illuminate\Routing\Middleware\ValidateSignature;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 /**
  * Class Kernel.
@@ -69,14 +67,26 @@ class Kernel extends HttpKernel
             EncryptCookies::class,
             AddQueuedCookiesToResponse::class,
             StartSession::class,
-            AuthenticateSession::class,
             ShareErrorsFromSession::class,
             VerifyCsrfToken::class,
             SubstituteBindings::class,
             LogRequest::class,
         ],
 
+        'external' => [
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            ShareErrorsFromSession::class,
+            VerifyCsrfToken::class,
+            SubstituteBindings::class,
+            LogRequest::class,
+            'auth',
+            'throttle:api',
+        ],
+
         'api' => [
+            EnsureFrontendRequestsAreStateful::class,
             SetAcceptJsonHeader::class,
             'throttle:api',
             SubstituteBindings::class,
@@ -85,13 +95,13 @@ class Kernel extends HttpKernel
     ];
 
     /**
-     * The application's route middleware.
+     * The application's middleware aliases.
      *
-     * These middleware may be assigned to groups or used individually.
+     * Aliases may be used instead of class names to conveniently assign middleware to routes and groups.
      *
      * @var array<string, class-string|string>
      */
-    protected $routeMiddleware = [
+    protected $middlewareAliases = [
         'auth' => Authenticate::class,
         'auth.basic' => AuthenticateWithBasicAuth::class,
         'auth.session' => AuthenticateSession::class,
@@ -99,12 +109,9 @@ class Kernel extends HttpKernel
         'can' => Authorize::class,
         'guest' => RedirectIfAuthenticated::class,
         'password.confirm' => RequirePassword::class,
+        'record_view' => RecordView::class,
         'signed' => ValidateSignature::class,
         'throttle' => ThrottleRequestsWithService::class,
         'verified' => EnsureEmailIsVerified::class,
-        'has_open_invitation' => HasOpenInvitation::class,
-        'is_video_streaming_allowed' => IsVideoStreamingAllowed::class,
-        'without_trashed' => WithoutTrashed::class,
-        'record_view' => RecordView::class,
     ];
 }

@@ -35,15 +35,25 @@ return [
 
     'discord' => [
         'token' => env('DISCORD_BOT_API_TOKEN'),
+        'api_url' => env('DISCORD_BOT_API_URL'),
+        'api_key' => env('DISCORD_BOT_API_KEY'),
         'db_updates_discord_channel' => env('DB_UPDATES_DISCORD_CHANNEL'),
         'admin_discord_channel' => env('ADMIN_DISCORD_CHANNEL'),
     ],
 
-    'mal' => [
-        'client' => env('MAL_CLIENT_ID'),
+    'openai' => [
+        'token' => env('OPENAI_BEARER_TOKEN'),
     ],
 
-    'do' => [
-        'token' => env('DO_BEARER_TOKEN'),
+    'anilist' => [
+        'client_id' => env('ANILIST_CLIENT_ID'),
+        'client_secret' => env('ANILIST_CLIENT_SECRET'),
+        'redirect_uri' => env('ANILIST_REDIRECT_URI'),
+    ],
+
+    'mal' => [
+        'client_id' => env('MAL_CLIENT_ID'),
+        'client_secret' => env('MAL_CLIENT_SECRET'),
+        'redirect_uri' => env('MAL_REDIRECT_URI'),
     ],
 ];

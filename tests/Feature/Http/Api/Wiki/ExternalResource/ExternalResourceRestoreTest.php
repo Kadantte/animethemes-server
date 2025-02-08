@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\ExternalResource;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\ExternalResource;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,18 +15,14 @@ use Tests\TestCase;
  */
 class ExternalResourceRestoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
-     * The ExternalResource Restore Endpoint shall be protected by sanctum.
+     * The External Resource Restore Endpoint shall be protected by sanctum.
      *
      * @return void
      */
     public function testProtected(): void
     {
-        $resource = ExternalResource::factory()->createOne();
-
-        $resource->delete();
+        $resource = ExternalResource::factory()->trashed()->createOne();
 
         $response = $this->patch(route('api.resource.restore', ['resource' => $resource]));
 
@@ -34,17 +30,51 @@ class ExternalResourceRestoreTest extends TestCase
     }
 
     /**
-     * The ExternalResource Restore Endpoint shall restore the resource.
+     * The External Resource Restore Endpoint shall forbid users without the restore external resource permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $resource = ExternalResource::factory()->trashed()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.resource.restore', ['resource' => $resource]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The External Resource Restore Endpoint shall forbid users from restoring a resource that isn't trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $resource = ExternalResource::factory()->createOne();
+
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(ExternalResource::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.resource.restore', ['resource' => $resource]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The External Resource Restore Endpoint shall restore the resource.
      *
      * @return void
      */
     public function testRestored(): void
     {
-        $resource = ExternalResource::factory()->createOne();
+        $resource = ExternalResource::factory()->trashed()->createOne();
 
-        $resource->delete();
-
-        $user = User::factory()->withPermission('restore external resource')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(ExternalResource::class))->createOne();
 
         Sanctum::actingAs($user);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Models\Wiki;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
@@ -12,14 +13,13 @@ use App\Models\Wiki\ExternalResource;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Series;
 use App\Models\Wiki\Studio;
-use App\Pivots\AnimeImage;
-use App\Pivots\AnimeResource;
-use App\Pivots\AnimeSeries;
-use App\Pivots\AnimeStudio;
+use App\Pivots\Wiki\AnimeImage;
+use App\Pivots\Wiki\AnimeResource;
+use App\Pivots\Wiki\AnimeSeries;
+use App\Pivots\Wiki\AnimeStudio;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -41,6 +41,20 @@ class AnimeTest extends TestCase
         $season = $anime->season;
 
         static::assertInstanceOf(AnimeSeason::class, $season);
+    }
+
+    /**
+     * The media_format attribute of an anime shall be cast to an AnimeMediaFormat enum instance.
+     *
+     * @return void
+     */
+    public function testCastsMediaFormatToEnum(): void
+    {
+        $anime = Anime::factory()->createOne();
+
+        $media_format = $anime->media_format;
+
+        static::assertInstanceOf(AnimeMediaFormat::class, $media_format);
     }
 
     /**
@@ -68,20 +82,6 @@ class AnimeTest extends TestCase
     }
 
     /**
-     * Anime shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $anime = Anime::factory()->createOne();
-
-        static::assertEquals(1, $anime->audits()->count());
-    }
-
-    /**
      * Anime shall be nameable.
      *
      * @return void
@@ -91,6 +91,18 @@ class AnimeTest extends TestCase
         $anime = Anime::factory()->createOne();
 
         static::assertIsString($anime->getName());
+    }
+
+    /**
+     * Anime shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $anime = Anime::factory()->createOne();
+
+        static::assertIsString($anime->getSubtitle());
     }
 
     /**

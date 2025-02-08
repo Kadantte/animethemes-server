@@ -6,16 +6,16 @@ namespace App\Concerns\Http\Requests\Api;
 
 use App\Contracts\Http\Api\Schema\SchemaInterface;
 use App\Enums\Http\Api\Filter\BinaryLogicalOperator;
-use App\Enums\Http\Api\Filter\LogicalOperator;
+use App\Enums\Http\Api\Filter\Clause;
 use App\Enums\Http\Api\Filter\UnaryLogicalOperator;
 use App\Http\Api\Criteria\Filter\Criteria;
 use App\Http\Api\Filter\Filter;
 use App\Http\Api\Parser\FilterParser;
+use App\Rules\Api\DelimitedRule;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Fluent;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Validator;
-use Spatie\ValidationRules\Rules\Delimited;
 
 /**
  * Trait ValidatesFilters.
@@ -37,8 +37,8 @@ trait ValidatesFilters
         foreach ($schema->filters() as $filter) {
             $schemaFilters = array_merge(
                 $schemaFilters,
-                $this->getFilterFormats($filter, BinaryLogicalOperator::getInstances()),
-                $this->getFilterFormats($filter, UnaryLogicalOperator::getInstances())
+                $this->getFilterFormats($filter, BinaryLogicalOperator::cases()),
+                $this->getFilterFormats($filter, UnaryLogicalOperator::cases())
             );
         }
 
@@ -49,7 +49,7 @@ trait ValidatesFilters
      * Get the allowed list of filter keys with possible conditions.
      *
      * @param  Filter  $filter
-     * @param  LogicalOperator[]  $logicalOperators
+     * @param  array<int, BinaryLogicalOperator|UnaryLogicalOperator>  $logicalOperators
      * @return string[]
      */
     protected function getFilterFormats(Filter $filter, array $logicalOperators): array
@@ -106,32 +106,75 @@ trait ValidatesFilters
      */
     protected function conditionallyRestrictFilter(Validator $validator, SchemaInterface $schema, Filter $filter): void
     {
-        $singleValueFilterFormats = $this->getFilterFormats($filter, BinaryLogicalOperator::getInstances());
+        $singleValueFilterFormats = $this->getFilterFormats($filter, BinaryLogicalOperator::cases());
         foreach ($singleValueFilterFormats as $singleValueFilterFormat) {
             foreach ($this->getFormattedParameters($schema, $singleValueFilterFormat) as $formattedParameter) {
                 if (collect($validator->getRules())->keys()->doesntContain($formattedParameter)) {
                     $validator->sometimes(
                         $formattedParameter,
                         $filter->getRules(),
-                        fn (Fluent $fluent) => is_string(Arr::get($fluent->toArray(), $formattedParameter)) && ! Str::of(Arr::get($fluent->toArray(), $formattedParameter))->contains(Criteria::VALUE_SEPARATOR)
+                        fn (Fluent $fluent) => Arr::has($fluent->toArray(), $formattedParameter) && ! Str::of(Arr::get($fluent->toArray(), $formattedParameter))->contains(Criteria::VALUE_SEPARATOR)
                     );
                 }
             }
         }
 
-        $multiValueRules = [];
-        foreach ($filter->getRules() as $rule) {
-            $multiValueRules[] = new Delimited($rule);
+        if (Clause::WHERE === $filter->clause()) {
+            $this->validateMultiValueFilterForWhereClause($validator, $schema, $filter);
         }
 
-        $multiValueFilterFormats = $this->getFilterFormats($filter, UnaryLogicalOperator::getInstances());
+        if (Clause::HAVING === $filter->clause()) {
+            $this->prohibitMultiValueFilterForHavingClause($validator, $schema, $filter);
+        }
+    }
+
+    /**
+     * Restrict where in clause based on allowed formats and provided values.
+     *
+     * @param  Validator  $validator
+     * @param  SchemaInterface  $schema
+     * @param  Filter  $filter
+     * @return void
+     */
+    protected function validateMultiValueFilterForWhereClause(Validator $validator, SchemaInterface $schema, Filter $filter): void
+    {
+        $multiValueRules = [];
+        foreach ($filter->getRules() as $rule) {
+            $multiValueRules[] = new DelimitedRule($rule);
+        }
+
+        $multiValueFilterFormats = $this->getFilterFormats($filter, UnaryLogicalOperator::cases());
         foreach ($multiValueFilterFormats as $multiValueFilterFormat) {
             foreach ($this->getFormattedParameters($schema, $multiValueFilterFormat) as $formattedParameter) {
                 if (collect($validator->getRules())->keys()->doesntContain($formattedParameter)) {
                     $validator->sometimes(
                         $formattedParameter,
                         $multiValueRules,
-                        fn (Fluent $fluent) => is_string(Arr::get($fluent->toArray(), $formattedParameter)) && Str::of(Arr::get($fluent->toArray(), $formattedParameter))->contains(Criteria::VALUE_SEPARATOR)
+                        fn (Fluent $fluent) => Arr::has($fluent->toArray(), $formattedParameter) && Str::of(Arr::get($fluent->toArray(), $formattedParameter))->contains(Criteria::VALUE_SEPARATOR)
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Prohibit multi value filter in having clause which is not supported in the SQL standard.
+     *
+     * @param  Validator  $validator
+     * @param  SchemaInterface  $schema
+     * @param  Filter  $filter
+     * @return void
+     */
+    protected function prohibitMultiValueFilterForHavingClause(Validator $validator, SchemaInterface $schema, Filter $filter): void
+    {
+        $multiValueFilterFormats = $this->getFilterFormats($filter, UnaryLogicalOperator::cases());
+        foreach ($multiValueFilterFormats as $multiValueFilterFormat) {
+            foreach ($this->getFormattedParameters($schema, $multiValueFilterFormat) as $formattedParameter) {
+                if (collect($validator->getRules())->keys()->doesntContain($formattedParameter)) {
+                    $validator->sometimes(
+                        $formattedParameter,
+                        ['prohibited'],
+                        fn (Fluent $fluent) => Arr::has($fluent->toArray(), $formattedParameter) && Str::of(Arr::get($fluent->toArray(), $formattedParameter))->contains(Criteria::VALUE_SEPARATOR)
                     );
                 }
             }

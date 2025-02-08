@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Song;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Song;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class SongDestroyTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Song Destroy Endpoint shall be protected by sanctum.
      *
@@ -32,6 +30,42 @@ class SongDestroyTest extends TestCase
     }
 
     /**
+     * The Song Destroy Endpoint shall forbid users without the delete song permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $song = Song::factory()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.song.destroy', ['song' => $song]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Song Destroy Endpoint shall forbid users from updating a song that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $song = Song::factory()->trashed()->createOne();
+
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(Song::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.song.destroy', ['song' => $song]));
+
+        $response->assertNotFound();
+    }
+
+    /**
      * The Song Destroy Endpoint shall delete the song.
      *
      * @return void
@@ -40,7 +74,7 @@ class SongDestroyTest extends TestCase
     {
         $song = Song::factory()->createOne();
 
-        $user = User::factory()->withPermission('delete song')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(Song::class))->createOne();
 
         Sanctum::actingAs($user);
 

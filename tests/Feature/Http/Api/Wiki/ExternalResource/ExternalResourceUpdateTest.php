@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\ExternalResource;
 
+use App\Enums\Auth\CrudPermission;
 use App\Enums\Models\Wiki\ResourceSite;
 use App\Models\Auth\User;
 use App\Models\Wiki\ExternalResource;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -16,10 +16,8 @@ use Tests\TestCase;
  */
 class ExternalResourceUpdateTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
-     * The ExternalResource Update Endpoint shall be protected by sanctum.
+     * The External Resource Update Endpoint shall be protected by sanctum.
      *
      * @return void
      */
@@ -29,7 +27,7 @@ class ExternalResourceUpdateTest extends TestCase
 
         $parameters = array_merge(
             ExternalResource::factory()->raw(),
-            [ExternalResource::ATTRIBUTE_SITE => ResourceSite::getDescription(ResourceSite::OFFICIAL_SITE)]
+            [ExternalResource::ATTRIBUTE_SITE => ResourceSite::OFFICIAL_SITE->localize()]
         );
 
         $response = $this->put(route('api.resource.update', ['resource' => $resource] + $parameters));
@@ -38,7 +36,57 @@ class ExternalResourceUpdateTest extends TestCase
     }
 
     /**
-     * The ExternalResource Update Endpoint shall update a resource.
+     * The External Resource Update Endpoint shall forbid users without the update external resource permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $resource = ExternalResource::factory()->createOne();
+
+        $parameters = array_merge(
+            ExternalResource::factory()->raw(),
+            [ExternalResource::ATTRIBUTE_SITE => ResourceSite::OFFICIAL_SITE->localize()]
+        );
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.resource.update', ['resource' => $resource] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The External Resource Update Endpoint shall forbid users from updating a resource that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $resource = ExternalResource::factory()
+            ->trashed()
+            ->createOne([
+                ExternalResource::ATTRIBUTE_SITE => ResourceSite::OFFICIAL_SITE,
+            ]);
+
+        $parameters = array_merge(
+            ExternalResource::factory()->raw(),
+            [ExternalResource::ATTRIBUTE_SITE => ResourceSite::OFFICIAL_SITE->localize()]
+        );
+
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(ExternalResource::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.resource.update', ['resource' => $resource] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The External Resource Update Endpoint shall update a resource.
      *
      * @return void
      */
@@ -50,10 +98,10 @@ class ExternalResourceUpdateTest extends TestCase
 
         $parameters = array_merge(
             ExternalResource::factory()->raw(),
-            [ExternalResource::ATTRIBUTE_SITE => ResourceSite::getDescription(ResourceSite::OFFICIAL_SITE)]
+            [ExternalResource::ATTRIBUTE_SITE => ResourceSite::OFFICIAL_SITE->localize()]
         );
 
-        $user = User::factory()->withPermission('update external resource')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(ExternalResource::class))->createOne();
 
         Sanctum::actingAs($user);
 

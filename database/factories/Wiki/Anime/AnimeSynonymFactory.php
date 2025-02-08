@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Database\Factories\Wiki\Anime;
 
+use App\Enums\Models\Wiki\AnimeSynonymType;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Arr;
 
 /**
  * Class SynonymFactory.
@@ -27,12 +29,15 @@ class AnimeSynonymFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
+        $type = Arr::random(AnimeSynonymType::cases());
+
         return [
-            AnimeSynonym::ATTRIBUTE_TEXT => $this->faker->words(3, true),
+            AnimeSynonym::ATTRIBUTE_TEXT => fake()->words(3, true),
+            AnimeSynonym::ATTRIBUTE_TYPE => $type->value,
         ];
     }
 }

@@ -9,9 +9,11 @@ use App\Http\Api\Criteria\Filter\Criteria;
 use App\Http\Api\Criteria\Filter\Expression;
 use App\Http\Api\Criteria\Filter\Predicate;
 use App\Http\Api\Filter\Filter;
-use App\Http\Api\Query\ReadQuery;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Http\Api\Scope\Scope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Arr;
 
 /**
  * Class FakeCriteria.
@@ -47,7 +49,7 @@ class FakeCriteria extends Criteria
 
         return new static(
             new Predicate($filterParam, null, $expression),
-            BinaryLogicalOperator::getRandomInstance(),
+            Arr::random(BinaryLogicalOperator::cases()),
             $scope
         );
     }
@@ -57,10 +59,11 @@ class FakeCriteria extends Criteria
      *
      * @param  Builder  $builder
      * @param  Filter  $filter
-     * @param  ReadQuery  $query
+     * @param  Query  $query
+     * @param  Schema  $schema
      * @return Builder
      */
-    public function filter(Builder $builder, Filter $filter, ReadQuery $query): Builder
+    public function filter(Builder $builder, Filter $filter, Query $query, Schema $schema): Builder
     {
         return $builder;
     }

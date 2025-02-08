@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\ServiceProvider;
 
 return [
 
@@ -166,6 +167,8 @@ return [
             'IMAGE_SECRET_ACCESS_KEY',
             'VIDEO_ACCESS_KEY_ID',
             'VIDEO_SECRET_ACCESS_KEY',
+            'AUDIO_ACCESS_KEY_ID',
+            'AUDIO_SECRET_ACCESS_KEY',
             'ALGOLIA_APP_ID',
             'ALGOLIA_SECRET',
             'MAILGUN_SECRET',
@@ -183,6 +186,8 @@ return [
             'IMAGE_SECRET_ACCESS_KEY',
             'VIDEO_ACCESS_KEY_ID',
             'VIDEO_SECRET_ACCESS_KEY',
+            'AUDIO_ACCESS_KEY_ID',
+            'AUDIO_SECRET_ACCESS_KEY',
             'ALGOLIA_APP_ID',
             'ALGOLIA_SECRET',
             'MAILGUN_SECRET',
@@ -205,33 +210,10 @@ return [
     |
     */
 
-    'providers' => [
-
+    'providers' => ServiceProvider::defaultProviders()->merge([
         /*
-         * Laravel Framework Service Providers...
+         * Package Service Providers...
          */
-        Illuminate\Auth\AuthServiceProvider::class,
-        Illuminate\Broadcasting\BroadcastServiceProvider::class,
-        Illuminate\Bus\BusServiceProvider::class,
-        Illuminate\Cache\CacheServiceProvider::class,
-        Illuminate\Foundation\Providers\ConsoleSupportServiceProvider::class,
-        Illuminate\Cookie\CookieServiceProvider::class,
-        Illuminate\Database\DatabaseServiceProvider::class,
-        Illuminate\Encryption\EncryptionServiceProvider::class,
-        Illuminate\Filesystem\FilesystemServiceProvider::class,
-        Illuminate\Foundation\Providers\FoundationServiceProvider::class,
-        Illuminate\Hashing\HashServiceProvider::class,
-        Illuminate\Mail\MailServiceProvider::class,
-        Illuminate\Notifications\NotificationServiceProvider::class,
-        Illuminate\Pagination\PaginationServiceProvider::class,
-        Illuminate\Pipeline\PipelineServiceProvider::class,
-        Illuminate\Queue\QueueServiceProvider::class,
-        Illuminate\Redis\RedisServiceProvider::class,
-        Illuminate\Auth\Passwords\PasswordResetServiceProvider::class,
-        Illuminate\Session\SessionServiceProvider::class,
-        Illuminate\Translation\TranslationServiceProvider::class,
-        Illuminate\Validation\ValidationServiceProvider::class,
-        Illuminate\View\ViewServiceProvider::class,
 
         /*
          * Application Service Providers...
@@ -239,13 +221,13 @@ return [
         App\Providers\AppServiceProvider::class,
         App\Providers\AuthServiceProvider::class,
         App\Providers\EventServiceProvider::class,
+        App\Providers\FilamentPanelProvider::class,
         App\Providers\FortifyServiceProvider::class,
         App\Providers\HorizonServiceProvider::class,
-        App\Providers\JetstreamServiceProvider::class,
-        App\Providers\NovaServiceProvider::class,
+        App\Providers\PulseServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
-        App\Providers\TelescopeServiceProvider::class,
-    ],
+        App\Providers\ViewableServiceProvider::class,
+    ])->toArray(),
 
     /*
     |--------------------------------------------------------------------------

@@ -6,17 +6,20 @@ namespace App\Scout\Elasticsearch\Api\Field\Wiki\Anime\Theme;
 
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Scout\Elasticsearch\Api\Field\StringField;
+use App\Scout\Elasticsearch\Api\Schema\Schema;
 
 /**
- * Class ThemeGroupField.
+ * Class ThemeSlugField.
  */
 class ThemeSlugField extends StringField
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(AnimeTheme::ATTRIBUTE_SLUG);
+        parent::__construct($schema, AnimeTheme::ATTRIBUTE_SLUG);
     }
 }

@@ -20,16 +20,6 @@ use App\Models\Document\Page;
 class PageSchema extends EloquentSchema
 {
     /**
-     * The model this schema represents.
-     *
-     * @return string
-     */
-    public function model(): string
-    {
-        return Page::class;
-    }
-
-    /**
      * Get the type of the resource.
      *
      * @return string
@@ -46,7 +36,10 @@ class PageSchema extends EloquentSchema
      */
     public function allowedIncludes(): array
     {
-        return [];
+        return array_merge(
+            $this->withIntermediatePaths([]),
+            []
+        );
     }
 
     /**
@@ -59,10 +52,10 @@ class PageSchema extends EloquentSchema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Page::ATTRIBUTE_ID),
-                new PageNameField(),
-                new PageSlugField(),
-                new PageBodyField(),
+                new IdField($this, Page::ATTRIBUTE_ID),
+                new PageNameField($this),
+                new PageSlugField($this),
+                new PageBodyField($this),
             ],
         );
     }

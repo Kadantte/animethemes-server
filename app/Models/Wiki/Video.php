@@ -4,40 +4,55 @@ declare(strict_types=1);
 
 namespace App\Models\Wiki;
 
+use App\Concerns\Models\Reportable;
+use App\Concerns\Models\Service\AggregatesView;
+use App\Contracts\Models\Streamable;
+use App\Enums\Models\List\PlaylistVisibility;
 use App\Enums\Models\Wiki\VideoOverlap;
 use App\Enums\Models\Wiki\VideoSource;
 use App\Events\Wiki\Video\VideoCreated;
-use App\Events\Wiki\Video\VideoCreating;
 use App\Events\Wiki\Video\VideoDeleted;
+use App\Events\Wiki\Video\VideoForceDeleting;
 use App\Events\Wiki\Video\VideoRestored;
 use App\Events\Wiki\Video\VideoUpdated;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeThemeEntryVideoResource;
 use App\Models\BaseModel;
+use App\Models\List\Playlist;
+use App\Models\List\Playlist\PlaylistTrack;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
-use App\Pivots\AnimeThemeEntryVideo;
-use BenSampo\Enum\Enum;
+use App\Models\Wiki\Video\VideoScript;
+use App\Pivots\Wiki\AnimeThemeEntryVideo;
 use CyrildeWit\EloquentViewable\Contracts\Viewable;
 use CyrildeWit\EloquentViewable\InteractsWithViews;
 use Database\Factories\Wiki\VideoFactory;
-use ElasticScoutDriverPlus\Searchable;
+use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
-use Laravel\Nova\Actions\Actionable;
 
 /**
  * Class Video.
  *
  * @property Collection<int, AnimeThemeEntry> $animethemeentries
+ * @property Audio|null $audio
+ * @property int|null $audio_id
  * @property string $basename
  * @property string $filename
+ * @property string $link
  * @property bool $lyrics
  * @property string $mimetype
  * @property bool $nc
- * @property Enum $overlap
+ * @property VideoOverlap $overlap
  * @property string $path
+ * @property Collection<int, PlaylistTrack> $tracks
  * @property int|null $resolution
+ * @property VideoScript|null $videoscript
  * @property int $size
- * @property Enum|null $source
+ * @property VideoSource|null $source
  * @property bool $subbed
  * @property string[] $tags
  * @property bool $uncen
@@ -45,17 +60,20 @@ use Laravel\Nova\Actions\Actionable;
  *
  * @method static VideoFactory factory(...$parameters)
  */
-class Video extends BaseModel implements Viewable
+class Video extends BaseModel implements Streamable, Viewable
 {
-    use Actionable;
+    use AggregatesView;
+    use Reportable;
     use Searchable;
     use InteractsWithViews;
 
     final public const TABLE = 'videos';
 
+    final public const ATTRIBUTE_AUDIO = 'audio_id';
     final public const ATTRIBUTE_BASENAME = 'basename';
     final public const ATTRIBUTE_FILENAME = 'filename';
     final public const ATTRIBUTE_ID = 'video_id';
+    final public const ATTRIBUTE_LINK = 'link';
     final public const ATTRIBUTE_LYRICS = 'lyrics';
     final public const ATTRIBUTE_MIMETYPE = 'mimetype';
     final public const ATTRIBUTE_NC = 'nc';
@@ -72,14 +90,20 @@ class Video extends BaseModel implements Viewable
     final public const RELATION_ANIMESYNONYMS = 'animethemeentries.animetheme.anime.animesynonyms';
     final public const RELATION_ANIMETHEME = 'animethemeentries.animetheme';
     final public const RELATION_ANIMETHEMEENTRIES = 'animethemeentries';
+    final public const RELATION_GROUP = 'animethemeentries.animetheme.group';
+    final public const RELATION_AUDIO = 'audio';
+    final public const RELATION_SCRIPT = 'videoscript';
     final public const RELATION_SONG = 'animethemeentries.animetheme.song';
+    final public const RELATION_TRACKS = 'tracks';
+    final public const RELATION_VIEWS = 'views';
 
     /**
      * The attributes that are mass assignable.
      *
-     * @var string[]
+     * @var list<string>
      */
     protected $fillable = [
+        Video::ATTRIBUTE_AUDIO,
         Video::ATTRIBUTE_BASENAME,
         Video::ATTRIBUTE_FILENAME,
         Video::ATTRIBUTE_LYRICS,
@@ -103,8 +127,8 @@ class Video extends BaseModel implements Viewable
      */
     protected $dispatchesEvents = [
         'created' => VideoCreated::class,
-        'creating' => VideoCreating::class,
         'deleted' => VideoDeleted::class,
+        'forceDeleting' => VideoForceDeleting::class,
         'restored' => VideoRestored::class,
         'updated' => VideoUpdated::class,
     ];
@@ -126,11 +150,26 @@ class Video extends BaseModel implements Viewable
     /**
      * The accessors to append to the model's array form.
      *
-     * @var array
+     * @var list<string>
      */
     protected $appends = [
+        Video::ATTRIBUTE_LINK,
         Video::ATTRIBUTE_TAGS,
     ];
+
+    /**
+     * The link of the video.
+     *
+     * @return string|null
+     */
+    public function getLinkAttribute(): ?string
+    {
+        if (Arr::exists($this->attributes, Video::ATTRIBUTE_BASENAME)) {
+            return route('video.show', $this);
+        }
+
+        return null;
+    }
 
     /**
      * The array of tags used to uniquely identify the video within the context of a theme.
@@ -144,8 +183,8 @@ class Video extends BaseModel implements Viewable
         if ($this->nc) {
             $tags[] = 'NC';
         }
-        if (! empty($this->source) && ($this->source->is(VideoSource::BD) || $this->source->is(VideoSource::DVD))) {
-            $tags[] = $this->source->description;
+        if (VideoSource::BD === $this->source || VideoSource::DVD === $this->source) {
+            $tags[] = $this->source->localize();
         }
         if (! empty($this->resolution) && $this->resolution !== 720) {
             $tags[] = strval($this->resolution);
@@ -158,6 +197,34 @@ class Video extends BaseModel implements Viewable
         }
 
         return $tags;
+    }
+
+    /**
+     * Get the priority score for the video.
+     * Higher scores increase the likelihood of the video to be the source of an audio track.
+     *
+     * @return int
+     */
+    public function getSourcePriority(): int
+    {
+        $priority = intval($this->source?->getPriority());
+
+        // Videos that play over the episode will likely have compressed audio
+        if (VideoOverlap::OVER === $this->overlap) {
+            $priority -= 8;
+        }
+
+        // Videos that transition to or from the episode may have compressed audio
+        if (VideoOverlap::TRANS === $this->overlap) {
+            $priority -= 5;
+        }
+
+        // De-prioritize hardsubbed videos
+        if ($this->lyrics || $this->subbed) {
+            $priority--;
+        }
+
+        return $priority;
     }
 
     /**
@@ -203,19 +270,22 @@ class Video extends BaseModel implements Viewable
     }
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        Video::ATTRIBUTE_LYRICS => 'boolean',
-        Video::ATTRIBUTE_NC => 'boolean',
-        Video::ATTRIBUTE_OVERLAP => VideoOverlap::class,
-        Video::ATTRIBUTE_SIZE => 'int',
-        Video::ATTRIBUTE_SOURCE => VideoSource::class,
-        Video::ATTRIBUTE_SUBBED => 'boolean',
-        Video::ATTRIBUTE_UNCEN => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            Video::ATTRIBUTE_LYRICS => 'boolean',
+            Video::ATTRIBUTE_NC => 'boolean',
+            Video::ATTRIBUTE_OVERLAP => VideoOverlap::class,
+            Video::ATTRIBUTE_SIZE => 'int',
+            Video::ATTRIBUTE_SOURCE => VideoSource::class,
+            Video::ATTRIBUTE_SUBBED => 'boolean',
+            Video::ATTRIBUTE_UNCEN => 'boolean',
+        ];
+    }
 
     /**
      * Get name.
@@ -228,14 +298,96 @@ class Video extends BaseModel implements Viewable
     }
 
     /**
+     * Get subtitle.
+     *
+     * @return string
+     */
+    public function getSubtitle(): string
+    {
+        return $this->path();
+    }
+
+    /**
+     * Get the path of the streamable model in the filesystem.
+     *
+     * @return string
+     */
+    public function path(): string
+    {
+        return $this->path;
+    }
+
+    /**
+     * Get the basename of the streamable model.
+     *
+     * @return string
+     */
+    public function basename(): string
+    {
+        return $this->basename;
+    }
+
+    /**
+     * Get the MIME type / content type of the streamable model.
+     *
+     * @return string
+     */
+    public function mimetype(): string
+    {
+        return $this->mimetype;
+    }
+
+    /**
+     * Get the content length of the streamable model.
+     *
+     * @return int
+     */
+    public function size(): int
+    {
+        return $this->size;
+    }
+
+    /**
      * Get the related entries.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<AnimeThemeEntry, $this>
      */
     public function animethemeentries(): BelongsToMany
     {
         return $this->belongsToMany(AnimeThemeEntry::class, AnimeThemeEntryVideo::TABLE, Video::ATTRIBUTE_ID, AnimeThemeEntry::ATTRIBUTE_ID)
             ->using(AnimeThemeEntryVideo::class)
+            ->as(AnimeThemeEntryVideoResource::$wrap)
             ->withTimestamps();
+    }
+
+    /**
+     * Gets the audio that the video uses.
+     *
+     * @return BelongsTo<Audio, $this>
+     */
+    public function audio(): BelongsTo
+    {
+        return $this->belongsTo(Audio::class, Video::ATTRIBUTE_AUDIO);
+    }
+
+    /**
+     * Get the script that the video owns.
+     *
+     * @return HasOne<VideoScript, $this>
+     */
+    public function videoscript(): HasOne
+    {
+        return $this->hasOne(VideoScript::class, VideoScript::ATTRIBUTE_VIDEO);
+    }
+
+    /**
+     * Get the tracks that use this video.
+     *
+     * @return HasMany<PlaylistTrack, $this>
+     */
+    public function tracks(): HasMany
+    {
+        return $this->hasMany(PlaylistTrack::class, PlaylistTrack::ATTRIBUTE_VIDEO)
+            ->whereRelation(PlaylistTrack::RELATION_PLAYLIST, Playlist::ATTRIBUTE_VISIBILITY, PlaylistVisibility::PUBLIC->value);
     }
 }

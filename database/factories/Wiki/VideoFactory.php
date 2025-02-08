@@ -8,6 +8,7 @@ use App\Enums\Models\Wiki\VideoOverlap;
 use App\Enums\Models\Wiki\VideoSource;
 use App\Models\Wiki\Video;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 /**
@@ -30,23 +31,26 @@ class VideoFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
+        $overlap = Arr::random(VideoOverlap::cases());
+        $source = Arr::random(VideoSource::cases());
+
         return [
             Video::ATTRIBUTE_BASENAME => Str::random(),
             Video::ATTRIBUTE_FILENAME => Str::random(),
-            Video::ATTRIBUTE_LYRICS => $this->faker->boolean(),
-            Video::ATTRIBUTE_MIMETYPE => $this->faker->mimeType(),
-            Video::ATTRIBUTE_NC => $this->faker->boolean(),
-            Video::ATTRIBUTE_OVERLAP => VideoOverlap::getRandomValue(),
+            Video::ATTRIBUTE_LYRICS => fake()->boolean(),
+            Video::ATTRIBUTE_MIMETYPE => fake()->mimeType(),
+            Video::ATTRIBUTE_NC => fake()->boolean(),
+            Video::ATTRIBUTE_OVERLAP => $overlap->value,
             Video::ATTRIBUTE_PATH => Str::random(),
-            Video::ATTRIBUTE_RESOLUTION => $this->faker->numberBetween(360, 1080),
-            Video::ATTRIBUTE_SIZE => $this->faker->randomDigitNotZero(),
-            Video::ATTRIBUTE_SOURCE => VideoSource::getRandomValue(),
-            Video::ATTRIBUTE_SUBBED => $this->faker->boolean(),
-            Video::ATTRIBUTE_UNCEN => $this->faker->boolean(),
+            Video::ATTRIBUTE_RESOLUTION => fake()->numberBetween(360, 1080),
+            Video::ATTRIBUTE_SIZE => fake()->randomDigitNotZero(),
+            Video::ATTRIBUTE_SOURCE => $source->value,
+            Video::ATTRIBUTE_SUBBED => fake()->boolean(),
+            Video::ATTRIBUTE_UNCEN => fake()->boolean(),
         ];
     }
 }

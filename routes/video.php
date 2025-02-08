@@ -2,6 +2,17 @@
 
 declare(strict_types=1);
 
-use Spatie\RouteDiscovery\Discovery\Discover;
+use App\Features\AllowVideoStreams;
+use App\Http\Controllers\Wiki\Video\VideoController;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
+use Laravel\Pennant\Middleware\EnsureFeaturesAreActive;
 
-Discover::controllers()->in(app_path('Http/Controllers/Wiki'));
+$isVideoStreamingAllowed = Str::of(EnsureFeaturesAreActive::class)
+    ->append(':')
+    ->append(AllowVideoStreams::class)
+    ->__toString();
+
+Route::get('/{video}', [VideoController::class, 'show'])
+    ->name('video.show')
+    ->middleware([$isVideoStreamingAllowed, 'record_view:video']);

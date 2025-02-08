@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Anime\Theme\Entry;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -17,8 +17,6 @@ use Tests\TestCase;
  */
 class EntryStoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Entry Store Endpoint shall be protected by sanctum.
      *
@@ -36,13 +34,33 @@ class EntryStoreTest extends TestCase
     }
 
     /**
+     * The Entry Store Endpoint shall forbid users without the create anime theme entry permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $entry = AnimeThemeEntry::factory()
+            ->for(AnimeTheme::factory()->for(Anime::factory()))
+            ->makeOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->post(route('api.animethemeentry.store', $entry->toArray()));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Entry Store Endpoint shall require the theme_id field.
      *
      * @return void
      */
     public function testRequiredFields(): void
     {
-        $user = User::factory()->withPermission('create anime theme entry')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(AnimeThemeEntry::class))->createOne();
 
         Sanctum::actingAs($user);
 
@@ -67,13 +85,13 @@ class EntryStoreTest extends TestCase
             [AnimeThemeEntry::ATTRIBUTE_THEME => $theme->getKey()],
         );
 
-        $user = User::factory()->withPermission('create anime theme entry')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(AnimeThemeEntry::class))->createOne();
 
         Sanctum::actingAs($user);
 
         $response = $this->post(route('api.animethemeentry.store', $parameters));
 
         $response->assertCreated();
-        static::assertDatabaseCount(AnimeThemeEntry::TABLE, 1);
+        static::assertDatabaseCount(AnimeThemeEntry::class, 1);
     }
 }

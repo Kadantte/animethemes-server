@@ -9,6 +9,7 @@ use App\Events\Wiki\Series\SeriesDeleted;
 use App\Events\Wiki\Series\SeriesRestored;
 use App\Events\Wiki\Series\SeriesUpdated;
 use App\Models\Wiki\Series;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
@@ -24,8 +25,6 @@ class SeriesTest extends TestCase
      */
     public function testSeriesCreatedEventDispatched(): void
     {
-        Event::fake();
-
         Series::factory()->createOne();
 
         Event::assertDispatched(SeriesCreated::class);
@@ -38,8 +37,6 @@ class SeriesTest extends TestCase
      */
     public function testSeriesDeletedEventDispatched(): void
     {
-        Event::fake();
-
         $series = Series::factory()->createOne();
 
         $series->delete();
@@ -54,8 +51,6 @@ class SeriesTest extends TestCase
      */
     public function testSeriesRestoredEventDispatched(): void
     {
-        Event::fake();
-
         $series = Series::factory()->createOne();
 
         $series->restore();
@@ -72,8 +67,6 @@ class SeriesTest extends TestCase
      */
     public function testSeriesRestoresQuietly(): void
     {
-        Event::fake();
-
         $series = Series::factory()->createOne();
 
         $series->restore();
@@ -88,8 +81,6 @@ class SeriesTest extends TestCase
      */
     public function testSeriesUpdatedEventDispatched(): void
     {
-        Event::fake();
-
         $series = Series::factory()->createOne();
         $changes = Series::factory()->makeOne();
 
@@ -97,5 +88,25 @@ class SeriesTest extends TestCase
         $series->save();
 
         Event::assertDispatched(SeriesUpdated::class);
+    }
+
+    /**
+     * The SeriesUpdated event shall contain embed fields.
+     *
+     * @return void
+     */
+    public function testSeriesUpdatedEventEmbedFields(): void
+    {
+        $series = Series::factory()->createOne();
+        $changes = Series::factory()->makeOne();
+
+        $series->fill($changes->getAttributes());
+        $series->save();
+
+        Event::assertDispatched(SeriesUpdated::class, function (SeriesUpdated $event) {
+            $message = $event->getDiscordMessage();
+
+            return ! empty(Arr::get($message->embed, 'fields'));
+        });
     }
 }

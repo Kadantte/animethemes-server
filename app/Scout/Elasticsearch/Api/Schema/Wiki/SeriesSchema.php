@@ -11,6 +11,8 @@ use App\Scout\Elasticsearch\Api\Field\Base\IdField;
 use App\Scout\Elasticsearch\Api\Field\Field;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Series\SeriesNameField;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Series\SeriesSlugField;
+use App\Scout\Elasticsearch\Api\Query\ElasticQuery;
+use App\Scout\Elasticsearch\Api\Query\Wiki\SeriesQuery;
 use App\Scout\Elasticsearch\Api\Schema\Schema;
 
 /**
@@ -21,11 +23,11 @@ class SeriesSchema extends Schema
     /**
      * The model this schema represents.
      *
-     * @return string
+     * @return ElasticQuery
      */
-    public function model(): string
+    public function query(): ElasticQuery
     {
-        return Series::class;
+        return new SeriesQuery();
     }
 
     /**
@@ -45,9 +47,12 @@ class SeriesSchema extends Schema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), Series::RELATION_ANIME),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), Series::RELATION_ANIME),
+            ]),
+            []
+        );
     }
 
     /**
@@ -60,9 +65,9 @@ class SeriesSchema extends Schema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Series::ATTRIBUTE_ID),
-                new SeriesNameField(),
-                new SeriesSlugField(),
+                new IdField($this, Series::ATTRIBUTE_ID),
+                new SeriesNameField($this),
+                new SeriesSlugField($this),
             ],
         );
     }

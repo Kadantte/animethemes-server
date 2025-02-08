@@ -1,10 +1,11 @@
 includes:
-    - ./vendor/nunomaduro/larastan/extension.neon
+    - ./vendor/larastan/larastan/extension.neon
 
 parameters:
+    treatPhpDocTypesAsCertain: false
     checkModelProperties: true
     checkOctaneCompatibility: true
-    checkMissingIterableValueType: false
+    reportUnmatchedIgnoredErrors: false
 
     paths:
         - app
@@ -14,12 +15,16 @@ parameters:
         - routes
         - tests
 
-    # The level 8 is the highest level
+    # The level 9 is the highest level
     level: 5
 
     ignoreErrors:
-        - '#Call to an undefined method Mockery\\ExpectationInterface|Mockery\\HigherOrderMessage::once\(\).#'
-        - '#Strict comparison using === between class-string<Laravel\\Nova\\Resource> and null will always evaluate to false.#'
         -
-            message: '#Unreachable statement - code above always terminates.#'
-            path: app/Http/Middleware/ThrottleRequestsWithService.php
+            identifier: missingType.iterableValue
+        -
+            identifier: varTag.nativeType
+        -
+            identifier: method.childReturnType
+        - '#Call to an undefined method Mockery\\ExpectationInterface|Mockery\\HigherOrderMessage::once\(\).#'
+        - '#Call to an undefined method Database\\Factories.*::trashed\(\).#'
+        - '#::mapWithKeys\(\) expects*non-empty-array<int\|string, string> given.#'

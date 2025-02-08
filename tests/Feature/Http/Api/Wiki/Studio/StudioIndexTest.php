@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Studio;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ImageFacet;
 use App\Enums\Models\Wiki\ResourceSite;
@@ -20,8 +22,9 @@ use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Wiki\Studio\StudioReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\StudioSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Wiki\Collection\StudioCollection;
 use App\Http\Resources\Wiki\Resource\StudioResource;
 use App\Models\BaseModel;
@@ -29,11 +32,11 @@ use App\Models\Wiki\Anime;
 use App\Models\Wiki\ExternalResource;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Studio;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -41,8 +44,8 @@ use Tests\TestCase;
  */
 class StudioIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Studio Index Endpoint shall return a collection of Studio Resources.
@@ -58,7 +61,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery()))
+                    new StudioCollection($studio, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -116,7 +119,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -151,7 +154,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -169,25 +172,28 @@ class StudioIndexTest extends TestCase
     {
         $schema = new StudioSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new StudioReadQuery($parameters);
+        $query = new Query($parameters);
 
         Studio::factory()->count($this->faker->randomDigitNotNull())->create();
 
         $response = $this->get(route('api.studio.index', $parameters));
 
+        $studios = $this->sort(Studio::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new StudioCollection($studios, $query)
                         ->response()
                         ->getData()
                 ),
@@ -230,7 +236,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -273,7 +279,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -291,7 +297,7 @@ class StudioIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -300,10 +306,7 @@ class StudioIndexTest extends TestCase
 
         Studio::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteStudio = Studio::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteStudio->each(function (Studio $studio) {
-            $studio->delete();
-        });
+        Studio::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $studio = Studio::withoutTrashed()->get();
 
@@ -312,7 +315,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -330,7 +333,7 @@ class StudioIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -339,10 +342,7 @@ class StudioIndexTest extends TestCase
 
         Studio::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteStudio = Studio::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteStudio->each(function (Studio $studio) {
-            $studio->delete();
-        });
+        Studio::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $studio = Studio::withTrashed()->get();
 
@@ -351,7 +351,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -369,7 +369,7 @@ class StudioIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -378,10 +378,7 @@ class StudioIndexTest extends TestCase
 
         Studio::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteStudio = Studio::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteStudio->each(function (Studio $studio) {
-            $studio->delete();
-        });
+        Studio::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $studio = Studio::onlyTrashed()->get();
 
@@ -390,7 +387,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -412,7 +409,7 @@ class StudioIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -420,17 +417,11 @@ class StudioIndexTest extends TestCase
         ];
 
         Carbon::withTestNow($deletedFilter, function () {
-            $studio = Studio::factory()->count($this->faker->randomDigitNotNull())->create();
-            $studio->each(function (Studio $item) {
-                $item->delete();
-            });
+            Studio::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         Carbon::withTestNow($excludedDate, function () {
-            $studio = Studio::factory()->count($this->faker->randomDigitNotNull())->create();
-            $studio->each(function (Studio $item) {
-                $item->delete();
-            });
+            Studio::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         $studio = Studio::withTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, $deletedFilter)->get();
@@ -440,7 +431,49 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Studio Index Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Studio::RELATION_ANIME,
+        ];
+
+        Studio::factory()
+            ->has(Anime::factory()->count($this->faker->randomDigitNotNull()))
+            ->count($this->faker->randomDigitNotNull())
+            ->create();
+
+        $studio = Studio::with([
+            Studio::RELATION_ANIME => function (BelongsToMany $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ])
+        ->get();
+
+        $response = $this->get(route('api.studio.index', $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -456,11 +489,11 @@ class StudioIndexTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Studio::RELATION_ANIME,
         ];
@@ -482,7 +515,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -532,7 +565,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studio, new StudioReadQuery($parameters)))
+                    new StudioCollection($studio, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -548,11 +581,11 @@ class StudioIndexTest extends TestCase
      */
     public function testResourcesBySite(): void
     {
-        $siteFilter = ResourceSite::getRandomInstance();
+        $siteFilter = Arr::random(ResourceSite::cases());
 
         $parameters = [
             FilterParser::param() => [
-                ExternalResource::ATTRIBUTE_SITE => $siteFilter->description,
+                ExternalResource::ATTRIBUTE_SITE => $siteFilter->localize(),
             ],
             IncludeParser::param() => Studio::RELATION_RESOURCES,
         ];
@@ -574,7 +607,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($studios, new StudioReadQuery($parameters)))
+                    new StudioCollection($studios, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -590,11 +623,11 @@ class StudioIndexTest extends TestCase
      */
     public function testImagesByFacet(): void
     {
-        $facetFilter = ImageFacet::getRandomInstance();
+        $facetFilter = Arr::random(ImageFacet::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Image::ATTRIBUTE_FACET => $facetFilter->description,
+                Image::ATTRIBUTE_FACET => $facetFilter->localize(),
             ],
             IncludeParser::param() => Studio::RELATION_IMAGES,
         ];
@@ -616,7 +649,7 @@ class StudioIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new StudioCollection($anime, new StudioReadQuery($parameters)))
+                    new StudioCollection($anime, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

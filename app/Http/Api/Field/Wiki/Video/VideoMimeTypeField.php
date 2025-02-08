@@ -6,6 +6,8 @@ namespace App\Http\Api\Field\Wiki\Video;
 
 use App\Contracts\Http\Api\Field\CreatableField;
 use App\Http\Api\Field\StringField;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Models\Wiki\Video;
 use Illuminate\Http\Request;
 
@@ -16,10 +18,12 @@ class VideoMimeTypeField extends StringField implements CreatableField
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(Video::ATTRIBUTE_MIMETYPE);
+        parent::__construct($schema, Video::ATTRIBUTE_MIMETYPE);
     }
 
     /**
@@ -35,5 +39,36 @@ class VideoMimeTypeField extends StringField implements CreatableField
             'string',
             'max:192',
         ];
+    }
+
+    /**
+     * Determine if the field should be displayed to the user.
+     *
+     * @param  Query  $query
+     * @return bool
+     *
+     * @noinspection PhpMissingParentCallCommonInspection
+     */
+    public function shouldRender(Query $query): bool
+    {
+        $criteria = $query->getFieldCriteria($this->schema->type());
+
+        return $criteria !== null && $criteria->isAllowedField($this->getKey());
+    }
+
+    /**
+     * Determine if the field should be included in the select clause of our query.
+     *
+     * @param  Query  $query
+     * @param  Schema  $schema
+     * @return bool
+     *
+     * @noinspection PhpMissingParentCallCommonInspection
+     */
+    public function shouldSelect(Query $query, Schema $schema): bool
+    {
+        $criteria = $query->getFieldCriteria($this->schema->type());
+
+        return $criteria !== null && $criteria->isAllowedField($this->getKey());
     }
 }

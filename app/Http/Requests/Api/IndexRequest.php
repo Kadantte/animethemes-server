@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api;
 
-use App\Contracts\Http\Requests\Api\SearchableRequest;
+use App\Contracts\Http\Api\Schema\SearchableSchema;
 use App\Enums\Http\Api\Filter\BinaryLogicalOperator;
 use App\Http\Api\Filter\HasFilter;
 use App\Http\Api\Parser\FilterParser;
@@ -13,14 +13,12 @@ use App\Http\Api\Parser\SortParser;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Fluent;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
-use Spatie\ValidationRules\Rules\Delimited;
 
 /**
  * Class IndexRequest.
  */
-abstract class IndexRequest extends ReadRequest
+class IndexRequest extends ReadRequest
 {
     /**
      * Get the filter validation rules.
@@ -34,7 +32,7 @@ abstract class IndexRequest extends ReadRequest
 
         $schemaFormattedFilters = array_merge(
             $this->getSchemaFormattedFilters($schema),
-            $this->getFilterFormats(new HasFilter($schema->allowedIncludes()), BinaryLogicalOperator::getInstances())
+            $this->getFilterFormats(new HasFilter($schema->allowedIncludes()), BinaryLogicalOperator::cases())
         );
 
         $param = Str::of(FilterParser::param())->append('.')->append($schema->type())->__toString();
@@ -73,7 +71,9 @@ abstract class IndexRequest extends ReadRequest
      */
     protected function getSearchRules(): array
     {
-        if ($this instanceof SearchableRequest) {
+        $schema = $this->schema();
+
+        if ($schema instanceof SearchableSchema) {
             return $this->optional(SearchParser::param());
         }
 
@@ -161,15 +161,21 @@ abstract class IndexRequest extends ReadRequest
             $types[] = $relationSchema->type();
         }
 
+        $rules = $this->restrictAllowedSortValues(SortParser::param(), $schema);
+
         $validator->sometimes(
             SortParser::param(),
-            ['sometimes', 'required', new Delimited(Rule::in($this->formatAllowedSortValues($schema)))],
-            fn (Fluent $fluent) => is_string($fluent->get(SortParser::param()))
+            Arr::get($rules, SortParser::param()),
+            fn (Fluent $fluent) => Arr::has($fluent->toArray(), SortParser::param()) && ! is_array($fluent->get(SortParser::param()))
         );
 
         $validator->sometimes(
             SortParser::param(),
-            ['nullable', Str::of('array:')->append(implode(',', $types))->__toString()],
+            [
+                'sometimes',
+                'required',
+                Str::of('array:')->append(implode(',', $types))->__toString(),
+            ],
             fn (Fluent $fluent) => is_array($fluent->get(SortParser::param()))
         );
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Factories\Wiki\Anime\Theme;
 
+use App\Models\Wiki\Anime;
+use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -27,16 +29,26 @@ class AnimeThemeEntryFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
         return [
-            AnimeThemeEntry::ATTRIBUTE_EPISODES => $this->faker->word(),
-            AnimeThemeEntry::ATTRIBUTE_NOTES => $this->faker->word(),
-            AnimeThemeEntry::ATTRIBUTE_NSFW => $this->faker->boolean(),
-            AnimeThemeEntry::ATTRIBUTE_SPOILER => $this->faker->boolean(),
-            AnimeThemeEntry::ATTRIBUTE_VERSION => $this->faker->randomDigitNotNull(),
+            AnimeThemeEntry::ATTRIBUTE_EPISODES => fake()->word(),
+            AnimeThemeEntry::ATTRIBUTE_NOTES => fake()->word(),
+            AnimeThemeEntry::ATTRIBUTE_NSFW => fake()->boolean(),
+            AnimeThemeEntry::ATTRIBUTE_SPOILER => fake()->boolean(),
+            AnimeThemeEntry::ATTRIBUTE_VERSION => fake()->randomDigitNotNull(),
         ];
+    }
+
+    /**
+     * Add anime and theme to the entry.
+     *
+     * @return static
+     */
+    public function forAnime(): static
+    {
+        return $this->for(AnimeTheme::factory()->for(Anime::factory()));
     }
 }

@@ -10,7 +10,6 @@ use App\Events\Admin\Announcement\AnnouncementRestored;
 use App\Events\Admin\Announcement\AnnouncementUpdated;
 use App\Models\BaseModel;
 use Database\Factories\Admin\AnnouncementFactory;
-use Laravel\Nova\Actions\Actionable;
 
 /**
  * Class Announcement.
@@ -22,8 +21,6 @@ use Laravel\Nova\Actions\Actionable;
  */
 class Announcement extends BaseModel
 {
-    use Actionable;
-
     final public const TABLE = 'announcements';
 
     final public const ATTRIBUTE_CONTENT = 'content';
@@ -32,7 +29,7 @@ class Announcement extends BaseModel
     /**
      * The attributes that are mass assignable.
      *
-     * @var string[]
+     * @var list<string>
      */
     protected $fillable = [
         Announcement::ATTRIBUTE_CONTENT,
@@ -74,5 +71,15 @@ class Announcement extends BaseModel
     public function getName(): string
     {
         return strval($this->getKey());
+    }
+
+    /**
+     * Get subtitle.
+     *
+     * @return string
+     */
+    public function getSubtitle(): string
+    {
+        return $this->getName();
     }
 }

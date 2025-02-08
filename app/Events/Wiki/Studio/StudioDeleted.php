@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Events\Wiki\Studio;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Studio as StudioFilament;
 use App\Models\Wiki\Studio;
-use App\Nova\Resources\Wiki\Studio as StudioResource;
 
 /**
  * Class StudioDeleted.
@@ -46,7 +46,7 @@ class StudioDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -56,13 +56,13 @@ class StudioDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = StudioResource::uriKey();
+        $uriKey = StudioFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

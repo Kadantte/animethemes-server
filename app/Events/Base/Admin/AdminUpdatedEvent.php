@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Config;
 /**
  * Class AdminUpdatedEvent.
  *
- * @template TModel of \App\Models\BaseModel
+ * @template TModel of \Illuminate\Database\Eloquent\Model
+ *
  * @extends BaseUpdatedEvent<TModel>
  */
 abstract class AdminUpdatedEvent extends BaseUpdatedEvent
@@ -24,5 +25,17 @@ abstract class AdminUpdatedEvent extends BaseUpdatedEvent
     public function getDiscordChannel(): string
     {
         return Config::get(ServiceConstants::ADMIN_DISCORD_CHANNEL_QUALIFIED);
+    }
+
+    /**
+     * Determine if the message should be sent.
+     *
+     * @return bool
+     *
+     * @noinspection PhpMissingParentCallCommonInspection
+     */
+    public function shouldSendDiscordMessage(): bool
+    {
+        return true;
     }
 }

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Artist;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ImageFacet;
 use App\Enums\Models\Wiki\ResourceSite;
@@ -21,8 +23,9 @@ use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Wiki\Artist\ArtistReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\ArtistSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Wiki\Collection\ArtistCollection;
 use App\Http\Resources\Wiki\Resource\ArtistResource;
 use App\Models\BaseModel;
@@ -32,13 +35,13 @@ use App\Models\Wiki\Artist;
 use App\Models\Wiki\ExternalResource;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Song;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -46,8 +49,8 @@ use Tests\TestCase;
  */
 class ArtistIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Artist Index Endpoint shall return a collection of Artist Resources.
@@ -63,7 +66,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery()))
+                    new ArtistCollection($artists, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -120,7 +123,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -155,7 +158,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -173,25 +176,28 @@ class ArtistIndexTest extends TestCase
     {
         $schema = new ArtistSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new ArtistReadQuery($parameters);
+        $query = new Query($parameters);
 
         Artist::factory()->count($this->faker->randomDigitNotNull())->create();
 
         $response = $this->get(route('api.artist.index', $parameters));
 
+        $artists = $this->sort(Artist::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new ArtistCollection($artists, $query)
                         ->response()
                         ->getData()
                 ),
@@ -234,7 +240,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artist, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -277,7 +283,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artist, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -295,7 +301,7 @@ class ArtistIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -304,10 +310,7 @@ class ArtistIndexTest extends TestCase
 
         Artist::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteArtist = Artist::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteArtist->each(function (Artist $artist) {
-            $artist->delete();
-        });
+        Artist::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $artist = Artist::withoutTrashed()->get();
 
@@ -316,7 +319,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artist, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -334,7 +337,7 @@ class ArtistIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -343,10 +346,7 @@ class ArtistIndexTest extends TestCase
 
         Artist::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteArtist = Artist::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteArtist->each(function (Artist $artist) {
-            $artist->delete();
-        });
+        Artist::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $artist = Artist::withTrashed()->get();
 
@@ -355,7 +355,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artist, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -373,7 +373,7 @@ class ArtistIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -382,10 +382,7 @@ class ArtistIndexTest extends TestCase
 
         Artist::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deleteArtist = Artist::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deleteArtist->each(function (Artist $artist) {
-            $artist->delete();
-        });
+        Artist::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $artist = Artist::onlyTrashed()->get();
 
@@ -394,7 +391,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artist, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -416,7 +413,7 @@ class ArtistIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -424,17 +421,11 @@ class ArtistIndexTest extends TestCase
         ];
 
         Carbon::withTestNow($deletedFilter, function () {
-            $artists = Artist::factory()->count($this->faker->randomDigitNotNull())->create();
-            $artists->each(function (Artist $artist) {
-                $artist->delete();
-            });
+            Artist::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         Carbon::withTestNow($excludedDate, function () {
-            $artists = Artist::factory()->count($this->faker->randomDigitNotNull())->create();
-            $artists->each(function (Artist $artist) {
-                $artist->delete();
-            });
+            Artist::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         $artist = Artist::withTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, $deletedFilter)->get();
@@ -444,62 +435,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artist, new ArtistReadQuery($parameters)))
-                        ->response()
-                        ->getData()
-                ),
-                true
-            )
-        );
-    }
-
-    /**
-     * The Artist Index Endpoint shall support constrained eager loading of themes by group.
-     *
-     * @return void
-     */
-    public function testThemesByGroup(): void
-    {
-        $groupFilter = $this->faker->word();
-        $excludedGroup = $this->faker->word();
-
-        $parameters = [
-            FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_GROUP => $groupFilter,
-            ],
-            IncludeParser::param() => Artist::RELATION_ANIMETHEMES,
-        ];
-
-        Artist::factory()
-            ->has(
-                Song::factory()
-                    ->count($this->faker->randomDigitNotNull())
-                    ->has(
-                        AnimeTheme::factory()
-                            ->for(Anime::factory())
-                            ->count($this->faker->randomDigitNotNull())
-                            ->state(new Sequence(
-                                [AnimeTheme::ATTRIBUTE_GROUP => $groupFilter],
-                                [AnimeTheme::ATTRIBUTE_GROUP => $excludedGroup],
-                            ))
-                    )
-            )
-            ->count($this->faker->randomDigitNotNull())
-            ->create();
-
-        $artists = Artist::with([
-            Artist::RELATION_ANIMETHEMES => function (HasMany $query) use ($groupFilter) {
-                $query->where(AnimeTheme::ATTRIBUTE_GROUP, $groupFilter);
-            },
-        ])
-        ->get();
-
-        $response = $this->get(route('api.artist.index', $parameters));
-
-        $response->assertJson(
-            json_decode(
-                json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artist, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -554,7 +490,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -570,11 +506,11 @@ class ArtistIndexTest extends TestCase
      */
     public function testThemesByType(): void
     {
-        $typeFilter = ThemeType::getRandomInstance();
+        $typeFilter = Arr::random(ThemeType::cases());
 
         $parameters = [
             FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->description,
+                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_ANIMETHEMES,
         ];
@@ -604,7 +540,57 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Artist Index Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Artist::RELATION_ANIME,
+        ];
+
+        Artist::factory()
+            ->has(
+                Song::factory()
+                    ->count($this->faker->randomDigitNotNull())
+                    ->has(
+                        AnimeTheme::factory()
+                            ->for(Anime::factory())
+                            ->count($this->faker->randomDigitNotNull())
+                    )
+            )
+            ->count($this->faker->randomDigitNotNull())
+            ->create();
+
+        $artists = Artist::with([
+            Artist::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ])
+        ->get();
+
+        $response = $this->get(route('api.artist.index', $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -620,11 +606,11 @@ class ArtistIndexTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_ANIME,
         ];
@@ -654,7 +640,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -710,7 +696,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -726,11 +712,11 @@ class ArtistIndexTest extends TestCase
      */
     public function testResourcesBySite(): void
     {
-        $siteFilter = ResourceSite::getRandomInstance();
+        $siteFilter = Arr::random(ResourceSite::cases());
 
         $parameters = [
             FilterParser::param() => [
-                ExternalResource::ATTRIBUTE_SITE => $siteFilter->description,
+                ExternalResource::ATTRIBUTE_SITE => $siteFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_RESOURCES,
         ];
@@ -752,7 +738,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -768,11 +754,11 @@ class ArtistIndexTest extends TestCase
      */
     public function testImagesByFacet(): void
     {
-        $facetFilter = ImageFacet::getRandomInstance();
+        $facetFilter = Arr::random(ImageFacet::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Image::ATTRIBUTE_FACET => $facetFilter->description,
+                Image::ATTRIBUTE_FACET => $facetFilter->localize(),
             ],
             IncludeParser::param() => Artist::RELATION_IMAGES,
         ];
@@ -794,7 +780,7 @@ class ArtistIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new ArtistCollection($artists, new ArtistReadQuery($parameters)))
+                    new ArtistCollection($artists, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

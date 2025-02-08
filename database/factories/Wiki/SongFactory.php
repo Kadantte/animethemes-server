@@ -27,12 +27,12 @@ class SongFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
         return [
-            Song::ATTRIBUTE_TITLE => $this->faker->words(3, true),
+            Song::ATTRIBUTE_TITLE => fake()->words(3, true),
         ];
     }
 }

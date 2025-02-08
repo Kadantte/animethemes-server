@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Jobs\Wiki;
 
-use App\Constants\Config\FlagConstants;
+use App\Constants\FeatureConstants;
+use App\Events\Wiki\Studio\StudioCreated;
+use App\Events\Wiki\Studio\StudioDeleted;
+use App\Events\Wiki\Studio\StudioRestored;
+use App\Events\Wiki\Studio\StudioUpdated;
 use App\Jobs\SendDiscordNotificationJob;
 use App\Models\Wiki\Studio;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
+use Laravel\Pennant\Feature;
 use Tests\TestCase;
 
 /**
@@ -23,8 +28,9 @@ class StudioTest extends TestCase
      */
     public function testStudioCreatedSendsDiscordNotification(): void
     {
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(StudioCreated::class);
 
         Studio::factory()->createOne();
 
@@ -40,8 +46,9 @@ class StudioTest extends TestCase
     {
         $studio = Studio::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(StudioDeleted::class);
 
         $studio->delete();
 
@@ -57,8 +64,9 @@ class StudioTest extends TestCase
     {
         $studio = Studio::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(StudioRestored::class);
 
         $studio->restore();
 
@@ -74,8 +82,9 @@ class StudioTest extends TestCase
     {
         $studio = Studio::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(StudioUpdated::class);
 
         $changes = Studio::factory()->makeOne();
 

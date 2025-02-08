@@ -4,20 +4,21 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Anime\Synonym;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Http\Api\Field\Field;
 use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Anime\Synonym\SynonymReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\Anime\SynonymSchema;
 use App\Http\Resources\Wiki\Anime\Resource\SynonymResource;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -26,7 +27,6 @@ use Tests\TestCase;
 class SynonymShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Synonym Show Endpoint shall return a Synonym Resource.
@@ -44,7 +44,7 @@ class SynonymShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymResource($synonym, new SynonymReadQuery()))
+                    new SynonymResource($synonym, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -60,9 +60,10 @@ class SynonymShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $synonym = AnimeSynonym::factory()->for(Anime::factory())->createOne();
-
-        $synonym->delete();
+        $synonym = AnimeSynonym::factory()
+            ->trashed()
+            ->for(Anime::factory())
+            ->createOne();
 
         $synonym->unsetRelations();
 
@@ -71,7 +72,7 @@ class SynonymShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymResource($synonym, new SynonymReadQuery()))
+                    new SynonymResource($synonym, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -106,7 +107,7 @@ class SynonymShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymResource($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymResource($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -143,7 +144,45 @@ class SynonymShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymResource($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymResource($synonym, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Synonym Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => AnimeSynonym::RELATION_ANIME,
+        ];
+
+        $synonym = AnimeSynonym::factory()->for(Anime::factory())->createOne();
+
+        $synonym->unsetRelations()->load([
+            AnimeSynonym::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.animesynonym.show', ['animesynonym' => $synonym] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new SynonymResource($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -159,11 +198,11 @@ class SynonymShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => AnimeSynonym::RELATION_ANIME,
         ];
@@ -181,7 +220,7 @@ class SynonymShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymResource($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymResource($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -227,7 +266,7 @@ class SynonymShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SynonymResource($synonym, new SynonymReadQuery($parameters)))
+                    new SynonymResource($synonym, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

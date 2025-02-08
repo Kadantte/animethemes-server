@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Constants\Config\ApiConstants;
+use App\Constants\Config\AudioConstants;
+use App\Constants\Config\DumpConstants;
+use App\Constants\Config\VideoConstants;
+use App\Enums\Auth\SpecialPermission;
+use App\Http\Middleware\Auth\Authenticate;
 use App\Models\Auth\User;
-use App\Models\Wiki\Anime\AnimeSynonym;
-use App\Models\Wiki\Anime\AnimeTheme;
-use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use Illuminate\Http\Request;
@@ -22,15 +25,6 @@ use Illuminate\Support\Facades\Route;
 class RouteServiceProvider extends ServiceProvider
 {
     /**
-     * The path to the "home" route for your application.
-     *
-     * Typically, users are redirected here after authentication.
-     *
-     * @var string
-     */
-    public const HOME = '/dashboard';
-
-    /**
      * Define your route model bindings, pattern filters, etc.
      *
      * @return void
@@ -39,14 +33,24 @@ class RouteServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->configureRateLimiting();
+        RateLimiter::for('api', function (Request $request) {
+            $user = $request->user('sanctum');
+            $ip = $request->ip();
+            $forwardedIp = $request->header('x-forwarded-ip');
 
-        // Anime Resources
-        Route::model('animesynonym', AnimeSynonym::class);
-        Route::model('animetheme', AnimeTheme::class);
+            // (If request is from client and no forwarded ip) or (the user logged in has permission to bypass API rate limiting)
+            /** @phpstan-ignore-next-line */
+            if (($ip === '127.0.0.1' && !$forwardedIp) || ($user instanceof User && $user->can(SpecialPermission::BYPASS_API_RATE_LIMITER->value))) {
+                return Limit::none();
+            }
 
-        // Anime Theme Resources
-        Route::model('animethemeentry', AnimeThemeEntry::class);
+            // Check if request is from client to prevent users from using forwarded ip
+            if ($ip === '127.0.0.1' && $forwardedIp) {
+                $ip = $forwardedIp;
+            }
+
+            return Limit::perMinute(90)->by(Auth::check() ? Auth::id() : $ip);
+        });
 
         $this->routes(function () {
             Route::middleware('web')
@@ -55,33 +59,36 @@ class RouteServiceProvider extends ServiceProvider
                 ->group(base_path('routes/web.php'));
 
             Route::middleware('web')
-                ->domain(Config::get('video.url'))
-                ->prefix(Config::get('video.path'))
+                ->domain(Config::get(VideoConstants::URL_QUALIFIED))
+                ->prefix(Config::get(VideoConstants::PATH_QUALIFIED))
                 ->group(base_path('routes/video.php'));
 
+            Route::middleware('web')
+                ->domain(Config::get(AudioConstants::URL_QUALIFIED))
+                ->prefix(Config::get(AudioConstants::PATH_QUALIFIED))
+                ->group(base_path('routes/audio.php'));
+
+            Route::middleware('web')
+                ->domain(Config::get(DumpConstants::URL_QUALIFIED))
+                ->prefix(Config::get(DumpConstants::PATH_QUALIFIED))
+                ->group(base_path('routes/dump.php'));
+
+            Route::middleware('web')
+                ->domain(Config::get(VideoConstants::SCRIPT_URL_QUALIFIED))
+                ->prefix(Config::get(VideoConstants::SCRIPT_PATH_QUALIFIED))
+                ->group(base_path('routes/script.php'));
+
+            Route::middleware('external')
+                ->domain(Config::get(ApiConstants::URL_QUALIFIED))
+                ->prefix(Config::get(ApiConstants::PATH_QUALIFIED))
+                ->as('api.')
+                ->group(base_path('routes/external.php'));
+
             Route::middleware('api')
-                ->domain(Config::get('api.url'))
-                ->prefix(Config::get('api.path'))
+                ->domain(Config::get(ApiConstants::URL_QUALIFIED))
+                ->prefix(Config::get(ApiConstants::PATH_QUALIFIED))
                 ->as('api.')
                 ->group(base_path('routes/api.php'));
-        });
-    }
-
-    /**
-     * Configure the rate limiters for the application.
-     *
-     * @return void
-     */
-    protected function configureRateLimiting(): void
-    {
-        RateLimiter::for('api', function (Request $request) {
-            // Allow the client to bypass API rate limiting
-            $user = $request->user('sanctum');
-            if ($user instanceof User && $user->can('bypass api rate limiter')) {
-                return Limit::none();
-            }
-
-            return Limit::perMinute(90)->by(Auth::check() ? Auth::id() : $request->ip());
         });
     }
 }

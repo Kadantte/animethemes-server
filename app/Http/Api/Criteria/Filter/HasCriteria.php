@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Api\Criteria\Filter;
 
+use App\Concerns\Actions\Http\Api\FiltersModels;
 use App\Enums\Http\Api\Filter\BinaryLogicalOperator;
 use App\Enums\Http\Api\Filter\ComparisonOperator;
 use App\Http\Api\Filter\Filter;
-use App\Http\Api\Query\ReadQuery;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\Schema;
 use App\Http\Api\Scope\Scope;
 use App\Http\Api\Scope\ScopeParser;
-use BenSampo\Enum\Exceptions\InvalidEnumKeyException;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -20,6 +20,10 @@ use Illuminate\Support\Str;
  */
 class HasCriteria extends Criteria
 {
+    use FiltersModels {
+        filter as filterModels;
+    }
+
     final public const PARAM_VALUE = 'has';
 
     /**
@@ -60,21 +64,18 @@ class HasCriteria extends Criteria
     public static function make(Scope $scope, string $filterParam, mixed $filterValues): static
     {
         $field = '';
-        $comparisonOperator = ComparisonOperator::GTE();
+        $comparisonOperator = ComparisonOperator::GTE;
         $count = 1;
-        $logicalOperator = BinaryLogicalOperator::AND();
+        $logicalOperator = BinaryLogicalOperator::AND;
 
         $filterParts = Str::of($filterParam)->explode(Criteria::PARAM_SEPARATOR);
+
         while ($filterParts->isNotEmpty()) {
             $filterPart = $filterParts->pop();
 
             // Set logical operator
-            if (empty($field) && BinaryLogicalOperator::hasKey(Str::upper($filterPart))) {
-                try {
-                    $logicalOperator = BinaryLogicalOperator::fromKey(Str::upper($filterPart));
-                } catch (InvalidEnumKeyException $e) {
-                    Log::error($e->getMessage());
-                }
+            if (empty($field) && BinaryLogicalOperator::unstrictCoerce($filterPart) !== null) {
+                $logicalOperator = BinaryLogicalOperator::unstrictCoerce($filterPart);
                 continue;
             }
 
@@ -88,12 +89,8 @@ class HasCriteria extends Criteria
             }
 
             // Set comparison operator
-            if (empty($field) && ComparisonOperator::hasKey(Str::upper($filterPart))) {
-                try {
-                    $comparisonOperator = ComparisonOperator::fromKey(Str::upper($filterPart));
-                } catch (InvalidEnumKeyException $e) {
-                    Log::error($e->getMessage());
-                }
+            if (empty($field) && ComparisonOperator::unstrictCoerce($filterPart) !== null) {
+                $comparisonOperator = ComparisonOperator::unstrictCoerce($filterPart);
                 continue;
             }
 
@@ -118,12 +115,12 @@ class HasCriteria extends Criteria
      *
      * @param  Builder  $builder
      * @param  Filter  $filter
-     * @param  ReadQuery  $query
+     * @param  Query  $query
+     * @param  Schema  $schema
      * @return Builder
      */
-    public function filter(Builder $builder, Filter $filter, ReadQuery $query): Builder
+    public function filter(Builder $builder, Filter $filter, Query $query, Schema $schema): Builder
     {
-        $schema = $query->schema();
         $filterValues = $filter->getFilterValues($this->getFilterValues());
 
         foreach ($filterValues as $filterValue) {
@@ -137,13 +134,7 @@ class HasCriteria extends Criteria
                 $this->getLogicalOperator()->value,
                 function (Builder $relationBuilder) use ($scope, $query, $relationSchema) {
                     if ($relationSchema !== null) {
-                        foreach ($query->getFilterCriteria() as $criteria) {
-                            foreach ($relationSchema->filters() as $filter) {
-                                if ($criteria->shouldFilter($filter, $scope)) {
-                                    $criteria->filter($relationBuilder, $filter, $query);
-                                }
-                            }
-                        }
+                        $this->filterModels($relationBuilder, $query, $relationSchema, $scope);
                     }
                 }
             );

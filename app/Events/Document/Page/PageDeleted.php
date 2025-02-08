@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Events\Document\Page;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Document\Page as PageFilament;
 use App\Models\Document\Page;
-use App\Nova\Resources\Document\Page as PageResource;
 
 /**
  * Class PageDeleted.
@@ -46,7 +46,7 @@ class PageDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -56,13 +56,13 @@ class PageDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = PageResource::uriKey();
+        $uriKey = PageFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

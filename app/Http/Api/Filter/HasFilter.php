@@ -71,7 +71,8 @@ class HasFilter extends Filter
         $paths = Arr::map($this->allowedIncludePaths, fn (AllowedInclude $allowedInclude) => $allowedInclude->path());
 
         return [
-            Rule::in($paths),
+            'required',
+            Rule::in($paths)->__toString(),
         ];
     }
 
@@ -83,12 +84,12 @@ class HasFilter extends Filter
     public function getAllowedComparisonOperators(): array
     {
         return [
-            ComparisonOperator::EQ(),
-            ComparisonOperator::NE(),
-            ComparisonOperator::LT(),
-            ComparisonOperator::GT(),
-            ComparisonOperator::LTE(),
-            ComparisonOperator::GTE(),
+            ComparisonOperator::EQ,
+            ComparisonOperator::NE,
+            ComparisonOperator::LT,
+            ComparisonOperator::GT,
+            ComparisonOperator::LTE,
+            ComparisonOperator::GTE,
         ];
     }
 }

@@ -4,91 +4,83 @@ declare(strict_types=1);
 
 namespace App\Policies\Auth;
 
+use App\Enums\Auth\CrudPermission;
+use App\Enums\Auth\ExtendedCrudPermission;
+use App\Models\Auth\Permission;
 use App\Models\Auth\User;
-use Illuminate\Auth\Access\HandlesAuthorization;
+use App\Policies\BasePolicy;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class PermissionPolicy.
  */
-class PermissionPolicy
+class PermissionPolicy extends BasePolicy
 {
-    use HandlesAuthorization;
-
     /**
      * Determine whether the user can view any models.
      *
-     * @param  User  $user
+     * @param  User|null  $user
      * @return bool
      */
-    public function viewAny(User $user): bool
+    public function viewAny(?User $user): bool
     {
-        return $user->can('view permission');
+        return $user !== null && $user->can(CrudPermission::VIEW->format(Permission::class));
     }
 
     /**
      * Determine whether the user can view the model.
      *
-     * @param  User  $user
+     * @param  User|null  $user
+     * @param  Permission  $permission
      * @return bool
-     */
-    public function view(User $user): bool
-    {
-        return $user->can('view permission');
-    }
-
-    /**
-     * Determine whether the user can create models.
      *
-     * @param  User  $user
-     * @return bool
+     * @noinspection PhpUnusedParameterInspection
      */
-    public function create(User $user): bool
+    public function view(?User $user, Model $permission): bool
     {
-        return $user->can('create permission');
+        return $user !== null && $user->can(CrudPermission::VIEW->format(Permission::class));
     }
 
     /**
      * Determine whether the user can update the model.
      *
      * @param  User  $user
+     * @param  Permission  $permission
      * @return bool
+     *
+     * @noinspection PhpUnusedParameterInspection
      */
-    public function update(User $user): bool
+    public function update(User $user, Model $permission): bool
     {
-        return $user->can('update permission');
+        return $user->can(CrudPermission::UPDATE->format(Permission::class));
     }
 
     /**
      * Determine whether the user can delete the model.
      *
      * @param  User  $user
+     * @param  Permission  $permission
      * @return bool
+     *
+     * @noinspection PhpUnusedParameterInspection
      */
-    public function delete(User $user): bool
+    public function delete(User $user, Model $permission): bool
     {
-        return $user->can('delete permission');
+        return $user->can(CrudPermission::DELETE->format(Permission::class));
     }
 
     /**
      * Determine whether the user can restore the model.
      *
      * @param  User  $user
+     * @param  Permission  $permission
      * @return bool
-     */
-    public function restore(User $user): bool
-    {
-        return $user->can('restore permission');
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
      *
-     * @param  User  $user
-     * @return bool
+     * @noinspection PhpUnusedParameterInspection
      */
-    public function forceDelete(User $user): bool
+    public function restore(User $user, Model $permission): bool
     {
-        return $user->can('force delete permission');
+        return $user->can(ExtendedCrudPermission::RESTORE->format(Permission::class));
     }
 
     /**
@@ -107,6 +99,16 @@ class PermissionPolicy
      * @return bool
      */
     public function attachRole(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine whether the user can detach any role from the permission.
+     *
+     * @return bool
+     */
+    public function detachAnyRole(): bool
     {
         return false;
     }
@@ -137,6 +139,16 @@ class PermissionPolicy
      * @return bool
      */
     public function attachUser(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine whether the user can detach any user from the permission.
+     *
+     * @return bool
+     */
+    public function detachAnyUser(): bool
     {
         return false;
     }

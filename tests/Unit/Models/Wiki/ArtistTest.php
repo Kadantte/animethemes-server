@@ -8,13 +8,12 @@ use App\Models\Wiki\Artist;
 use App\Models\Wiki\ExternalResource;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Song;
-use App\Pivots\ArtistImage;
-use App\Pivots\ArtistMember;
-use App\Pivots\ArtistResource;
-use App\Pivots\ArtistSong;
+use App\Pivots\Wiki\ArtistImage;
+use App\Pivots\Wiki\ArtistMember;
+use App\Pivots\Wiki\ArtistResource;
+use App\Pivots\Wiki\ArtistSong;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -49,20 +48,6 @@ class ArtistTest extends TestCase
     }
 
     /**
-     * Artists shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $artist = Artist::factory()->createOne();
-
-        static::assertEquals(1, $artist->audits()->count());
-    }
-
-    /**
      * Artists shall be nameable.
      *
      * @return void
@@ -72,6 +57,18 @@ class ArtistTest extends TestCase
         $artist = Artist::factory()->createOne();
 
         static::assertIsString($artist->getName());
+    }
+
+    /**
+     * Artists shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $artist = Artist::factory()->createOne();
+
+        static::assertIsString($artist->getSubtitle());
     }
 
     /**

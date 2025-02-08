@@ -11,16 +11,18 @@ use App\Http\Resources\Wiki\Anime\Resource\ThemeResource;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Scout\Elasticsearch\Api\Field\Base\IdField;
 use App\Scout\Elasticsearch\Api\Field\Field;
-use App\Scout\Elasticsearch\Api\Field\Wiki\Anime\Theme\ThemeGroupField;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Anime\Theme\ThemeSequenceField;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Anime\Theme\ThemeSlugField;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Anime\Theme\ThemeTypeField;
+use App\Scout\Elasticsearch\Api\Query\ElasticQuery;
+use App\Scout\Elasticsearch\Api\Query\Wiki\Anime\ThemeQuery;
 use App\Scout\Elasticsearch\Api\Schema\Schema;
 use App\Scout\Elasticsearch\Api\Schema\Wiki\Anime\Theme\EntrySchema;
 use App\Scout\Elasticsearch\Api\Schema\Wiki\AnimeSchema;
 use App\Scout\Elasticsearch\Api\Schema\Wiki\ArtistSchema;
 use App\Scout\Elasticsearch\Api\Schema\Wiki\SongSchema;
 use App\Scout\Elasticsearch\Api\Schema\Wiki\VideoSchema;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class ThemeSchema.
@@ -38,11 +40,11 @@ class ThemeSchema extends Schema
     /**
      * The model this schema represents.
      *
-     * @return string
+     * @return ElasticQuery
      */
-    public function model(): string
+    public function query(): ElasticQuery
     {
-        return AnimeTheme::class;
+        return new ThemeQuery();
     }
 
     /**
@@ -62,14 +64,17 @@ class ThemeSchema extends Schema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), AnimeTheme::RELATION_ANIME),
-            new AllowedInclude(new ArtistSchema(), AnimeTheme::RELATION_ARTISTS),
-            new AllowedInclude(new EntrySchema(), AnimeTheme::RELATION_ENTRIES),
-            new AllowedInclude(new ImageSchema(), AnimeTheme::RELATION_IMAGES),
-            new AllowedInclude(new SongSchema(), AnimeTheme::RELATION_SONG),
-            new AllowedInclude(new VideoSchema(), AnimeTheme::RELATION_VIDEOS),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), AnimeTheme::RELATION_ANIME),
+                new AllowedInclude(new ArtistSchema(), AnimeTheme::RELATION_ARTISTS),
+                new AllowedInclude(new EntrySchema(), AnimeTheme::RELATION_ENTRIES),
+                new AllowedInclude(new ImageSchema(), AnimeTheme::RELATION_IMAGES),
+                new AllowedInclude(new SongSchema(), AnimeTheme::RELATION_SONG),
+                new AllowedInclude(new VideoSchema(), AnimeTheme::RELATION_VIDEOS),
+            ]),
+            []
+        );
     }
 
     /**
@@ -82,11 +87,10 @@ class ThemeSchema extends Schema
         return array_merge(
             parent::fields(),
             [
-                new IdField(AnimeTheme::ATTRIBUTE_ID),
-                new ThemeGroupField(),
-                new ThemeSequenceField(),
-                new ThemeSlugField(),
-                new ThemeTypeField(),
+                new IdField($this, AnimeTheme::ATTRIBUTE_ID),
+                new ThemeSequenceField($this),
+                new ThemeSlugField($this),
+                new ThemeTypeField($this),
             ],
         );
     }
@@ -106,5 +110,15 @@ class ThemeSchema extends Schema
                 new Sort(ThemeSchema::SORT_YEAR),
             ]
         );
+    }
+
+    /**
+     * Get the model of the schema.
+     *
+     * @return Model
+     */
+    public function model(): Model
+    {
+        return new AnimeTheme();
     }
 }

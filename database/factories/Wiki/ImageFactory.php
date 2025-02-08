@@ -7,6 +7,7 @@ namespace Database\Factories\Wiki;
 use App\Enums\Models\Wiki\ImageFacet;
 use App\Models\Wiki\Image;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 /**
@@ -29,12 +30,14 @@ class ImageFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
+        $facet = Arr::random(ImageFacet::cases());
+
         return [
-            Image::ATTRIBUTE_FACET => ImageFacet::getRandomValue(),
+            Image::ATTRIBUTE_FACET => $facet->value,
             Image::ATTRIBUTE_PATH => Str::random(),
         ];
     }

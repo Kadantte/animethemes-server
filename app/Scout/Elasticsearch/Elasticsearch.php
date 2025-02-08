@@ -4,27 +4,35 @@ declare(strict_types=1);
 
 namespace App\Scout\Elasticsearch;
 
+use App\Concerns\Actions\Http\Api\AggregatesFields;
+use App\Concerns\Actions\Http\Api\ConstrainsEagerLoads;
 use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Api\Query\Base\EloquentReadQuery;
+use App\Http\Api\Query\Query;
+use App\Http\Api\Schema\EloquentSchema;
 use App\Http\Api\Scope\ScopeParser;
-use App\Http\Resources\BaseCollection;
 use App\Scout\Elasticsearch\Api\Parser\FilterParser;
 use App\Scout\Elasticsearch\Api\Parser\PagingParser;
 use App\Scout\Elasticsearch\Api\Parser\SortParser;
-use App\Scout\Elasticsearch\Api\Query\ElasticQueryPayload;
+use App\Scout\Elasticsearch\Api\Schema\Schema;
 use App\Scout\Search;
-use ElasticScoutDriverPlus\Builders\BoolQueryBuilder;
-use ElasticScoutDriverPlus\Exceptions\QueryBuilderException;
-use Elasticsearch\Client;
+use Elastic\Client\ClientBuilderInterface;
+use Elastic\ScoutDriverPlus\Builders\BoolQueryBuilder;
+use Elastic\ScoutDriverPlus\Exceptions\QueryBuilderValidationException;
 use Exception;
+use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
+use Illuminate\Support\Str;
 
 /**
  * Class Elasticsearch.
  */
 class Elasticsearch extends Search
 {
+    use AggregatesFields;
+    use ConstrainsEagerLoads;
+
     /**
      * Is the ES instance reachable?
      *
@@ -35,12 +43,12 @@ class Elasticsearch extends Search
     /**
      * Create a new search instance.
      *
-     * @param  Client  $client
+     * @param  ClientBuilderInterface  $builder
      */
-    public function __construct(Client $client)
+    public function __construct(ClientBuilderInterface $builder)
     {
         try {
-            $this->alive = $client->ping();
+            $this->alive = $builder->default()->ping()->asBool();
         } catch (Exception $exception) {
             Log::error($exception->getMessage());
             $this->alive = false;
@@ -60,10 +68,10 @@ class Elasticsearch extends Search
     /**
      * Should the search be performed?
      *
-     * @param  EloquentReadQuery  $query
+     * @param  Query  $query
      * @return bool
      */
-    public function shouldSearch(EloquentReadQuery $query): bool
+    public function shouldSearch(Query $query): bool
     {
         return $query->hasSearchCriteria() && $this->isAlive();
     }
@@ -71,28 +79,30 @@ class Elasticsearch extends Search
     /**
      * Perform the search.
      *
-     * @param  EloquentReadQuery  $query
+     * @param  Query  $query
+     * @param  EloquentSchema  $schema
      * @param  PaginationStrategy  $paginationStrategy
-     * @return BaseCollection
+     * @return Collection|Paginator
      */
     public function search(
-        EloquentReadQuery $query,
+        Query $query,
+        EloquentSchema $schema,
         PaginationStrategy $paginationStrategy
-    ): BaseCollection {
-        $elasticQueryPayload = $this->elasticQueryPayload($query);
-        if ($elasticQueryPayload === null) {
-            $model = $query->schema()->model();
-            throw new RuntimeException("ElasticQueryPayload not configured for model '$model'");
-        }
+    ): Collection|Paginator {
+        $elasticSchema = $this->elasticSchema($schema);
 
-        $schema = $elasticQueryPayload->schema();
+        $elasticQuery = $elasticSchema->query();
 
-        // initialize builder with payload for matches
-        $builder = $elasticQueryPayload->buildQuery();
+        // initialize builder for matches
+        $builder = $elasticQuery->build($query->getSearchCriteria());
+
+        // load aggregate fields
+        $builder->refineModels(function (Builder $searchModelBuilder) use ($query, $schema) {
+            $this->withAggregates($searchModelBuilder, $query, $schema);
+        });
 
         // eager load relations with constraints
-        $constrainedEagerLoads = $query->constrainEagerLoads();
-        $builder = $builder->load($constrainedEagerLoads);
+        $builder = $builder->load($this->constrainEagerLoads($query, $schema));
 
         // apply filters
         $filterBuilder = new BoolQueryBuilder();
@@ -100,7 +110,7 @@ class Elasticsearch extends Search
         foreach ($query->getFilterCriteria() as $filterCriterion) {
             $elasticFilterCriteria = FilterParser::parse($filterCriterion);
             if ($elasticFilterCriteria !== null) {
-                foreach ($schema->filters() as $filter) {
+                foreach ($elasticSchema->filters() as $filter) {
                     if ($filterCriterion->shouldFilter($filter, $scope)) {
                         $filterBuilder = $elasticFilterCriteria->filter($filterBuilder, $filter, $query);
                     }
@@ -109,7 +119,7 @@ class Elasticsearch extends Search
         }
         try {
             $builder->postFilter($filterBuilder);
-        } catch (QueryBuilderException) {
+        } catch (QueryBuilderValidationException) {
             // There doesn't appear to be a way to check if any filters have been set in the filter builder
         }
 
@@ -118,7 +128,7 @@ class Elasticsearch extends Search
         foreach ($query->getSortCriteria() as $sortCriterion) {
             $elasticSortCriteria = SortParser::parse($sortCriterion);
             if ($elasticSortCriteria !== null) {
-                foreach ($schema->sorts() as $sort) {
+                foreach ($elasticSchema->sorts() as $sort) {
                     if ($sortCriterion->shouldSort($sort, $scope)) {
                         $sorts[] = $elasticSortCriteria->sort($sort);
                     }
@@ -133,29 +143,23 @@ class Elasticsearch extends Search
         $paginationCriteria = $query->getPagingCriteria($paginationStrategy);
         $elasticPaginationCriteria = PagingParser::parse($paginationCriteria);
 
-        $collection = $elasticPaginationCriteria !== null
+        return $elasticPaginationCriteria !== null
             ? $elasticPaginationCriteria->paginate($builder)
             : $builder->execute()->models();
-
-        return $query->collection($collection);
     }
 
     /**
-     * Resolve Elasticsearch query builder from schema.
+     * Resolve Elasticsearch schema from Eloquent schema.
      *
-     * @param  EloquentReadQuery  $query
-     * @return ElasticQueryPayload|null
+     * @param  EloquentSchema  $schema
+     * @return Schema
      */
-    protected function elasticQueryPayload(EloquentReadQuery $query): ?ElasticQueryPayload
+    private function elasticSchema(EloquentSchema $schema): Schema
     {
-        $schema = $query->schema();
+        $elasticSchemaClass = Str::of(get_class($schema))
+            ->replace('Http', 'Scout\\Elasticsearch')
+            ->__toString();
 
-        $elasticQueryPayload = DiscoverElasticQueryPayload::byModelClass($schema->model());
-
-        if ($elasticQueryPayload !== null) {
-            return new $elasticQueryPayload($query->getSearchCriteria());
-        }
-
-        return null;
+        return new $elasticSchemaClass();
     }
 }

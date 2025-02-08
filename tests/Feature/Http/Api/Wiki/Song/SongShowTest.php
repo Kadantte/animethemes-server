@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Song;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ThemeType;
 use App\Http\Api\Field\Field;
@@ -11,7 +12,7 @@ use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Song\SongReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\SongSchema;
 use App\Http\Resources\Wiki\Resource\SongResource;
 use App\Models\Wiki\Anime;
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -31,7 +32,6 @@ use Tests\TestCase;
 class SongShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Song Show Endpoint shall return a Song Resource.
@@ -47,7 +47,7 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery()))
+                    new SongResource($song, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -63,9 +63,7 @@ class SongShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $song = Song::factory()->createOne();
-
-        $song->delete();
+        $song = Song::factory()->trashed()->createOne();
 
         $song->unsetRelations();
 
@@ -74,7 +72,7 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery()))
+                    new SongResource($song, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -112,7 +110,7 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery($parameters)))
+                    new SongResource($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -147,56 +145,7 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery($parameters)))
-                        ->response()
-                        ->getData()
-                ),
-                true
-            )
-        );
-    }
-
-    /**
-     * The Song Show Endpoint shall support constrained eager loading of themes by group.
-     *
-     * @return void
-     */
-    public function testThemesByGroup(): void
-    {
-        $groupFilter = $this->faker->word();
-        $excludedGroup = $this->faker->word();
-
-        $parameters = [
-            FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_GROUP => $groupFilter,
-            ],
-            IncludeParser::param() => Song::RELATION_ANIMETHEMES,
-        ];
-
-        $song = Song::factory()
-            ->has(
-                AnimeTheme::factory()
-                    ->count($this->faker->randomDigitNotNull())
-                    ->for(Anime::factory())
-                    ->state(new Sequence(
-                        [AnimeTheme::ATTRIBUTE_GROUP => $groupFilter],
-                        [AnimeTheme::ATTRIBUTE_GROUP => $excludedGroup],
-                    ))
-            )
-            ->createOne();
-
-        $song->unsetRelations()->load([
-            Song::RELATION_ANIMETHEMES => function (HasMany $query) use ($groupFilter) {
-                $query->where(AnimeTheme::ATTRIBUTE_GROUP, $groupFilter);
-            },
-        ]);
-
-        $response = $this->get(route('api.song.show', ['song' => $song] + $parameters));
-
-        $response->assertJson(
-            json_decode(
-                json_encode(
-                    (new SongResource($song, new SongReadQuery($parameters)))
+                    new SongResource($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -245,7 +194,7 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery($parameters)))
+                    new SongResource($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -261,11 +210,11 @@ class SongShowTest extends TestCase
      */
     public function testThemesByType(): void
     {
-        $typeFilter = ThemeType::getRandomInstance();
+        $typeFilter = Arr::random(ThemeType::cases());
 
         $parameters = [
             FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->description,
+                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->localize(),
             ],
             IncludeParser::param() => Song::RELATION_ANIMETHEMES,
         ];
@@ -285,7 +234,47 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery($parameters)))
+                    new SongResource($song, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Song Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Song::RELATION_ANIME,
+        ];
+
+        $song = Song::factory()
+            ->has(AnimeTheme::factory()->count($this->faker->randomDigitNotNull())->for(Anime::factory()))
+            ->createOne();
+
+        $song->unsetRelations()->load([
+            Song::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.song.show', ['song' => $song] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new SongResource($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -301,11 +290,11 @@ class SongShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Song::RELATION_ANIME,
         ];
@@ -325,7 +314,7 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery($parameters)))
+                    new SongResource($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -375,7 +364,7 @@ class SongShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new SongResource($song, new SongReadQuery($parameters)))
+                    new SongResource($song, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

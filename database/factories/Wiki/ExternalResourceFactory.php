@@ -7,6 +7,7 @@ namespace Database\Factories\Wiki;
 use App\Enums\Models\Wiki\ResourceSite;
 use App\Models\Wiki\ExternalResource;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Arr;
 
 /**
  * Class ExternalResourceFactory.
@@ -28,14 +29,18 @@ class ExternalResourceFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
+        $site = Arr::random(ResourceSite::cases());
+
+        $link = fake()->url();
+
         return [
-            ExternalResource::ATTRIBUTE_EXTERNAL_ID => $this->faker->randomNumber(),
-            ExternalResource::ATTRIBUTE_LINK => $this->faker->url(),
-            ExternalResource::ATTRIBUTE_SITE => ResourceSite::getRandomValue(),
+            ExternalResource::ATTRIBUTE_EXTERNAL_ID => ResourceSite::parseIdFromLink($link),
+            ExternalResource::ATTRIBUTE_LINK => $link,
+            ExternalResource::ATTRIBUTE_SITE => $site->value,
         ];
     }
 }

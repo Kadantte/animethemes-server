@@ -6,12 +6,11 @@ namespace Tests\Feature\Http\Api\Admin\Announcement;
 
 use App\Http\Api\Field\Field;
 use App\Http\Api\Parser\FieldParser;
-use App\Http\Api\Query\Admin\AnnouncementReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Admin\AnnouncementSchema;
 use App\Http\Resources\Admin\Resource\AnnouncementResource;
 use App\Models\Admin\Announcement;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Tests\TestCase;
 
 /**
@@ -20,7 +19,6 @@ use Tests\TestCase;
 class AnnouncementShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Announcement Show Endpoint shall return an Announcement Resource.
@@ -36,7 +34,7 @@ class AnnouncementShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementResource($announcement, new AnnouncementReadQuery()))
+                    new AnnouncementResource($announcement, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -52,9 +50,7 @@ class AnnouncementShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $announcement = Announcement::factory()->createOne();
-
-        $announcement->delete();
+        $announcement = Announcement::factory()->trashed()->createOne();
 
         $announcement->unsetRelations();
 
@@ -63,7 +59,7 @@ class AnnouncementShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementResource($announcement, new AnnouncementReadQuery()))
+                    new AnnouncementResource($announcement, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -93,12 +89,12 @@ class AnnouncementShowTest extends TestCase
 
         $announcement = Announcement::factory()->create();
 
-        $response = $this->get(route('api.announcement.show', ['announcement' => $announcement]));
+        $response = $this->get(route('api.announcement.show', ['announcement' => $announcement] + $parameters));
 
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new AnnouncementResource($announcement, new AnnouncementReadQuery($parameters)))
+                    new AnnouncementResource($announcement, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

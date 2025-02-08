@@ -4,121 +4,140 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\ExternalResource\ExternalResourceDestroyRequest;
-use App\Http\Requests\Api\Wiki\ExternalResource\ExternalResourceForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\ExternalResource\ExternalResourceIndexRequest;
-use App\Http\Requests\Api\Wiki\ExternalResource\ExternalResourceRestoreRequest;
-use App\Http\Requests\Api\Wiki\ExternalResource\ExternalResourceShowRequest;
-use App\Http\Requests\Api\Wiki\ExternalResource\ExternalResourceStoreRequest;
-use App\Http\Requests\Api\Wiki\ExternalResource\ExternalResourceUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Collection\ExternalResourceCollection;
+use App\Http\Resources\Wiki\Resource\ExternalResourceResource;
 use App\Models\Wiki\ExternalResource;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class ExternalResourceController.
  */
-class ExternalResourceController extends Controller
+class ExternalResourceController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(ExternalResource::class, 'resource');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  ExternalResourceIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return ExternalResourceCollection
      */
-    #[Route(fullUri: 'resource', name: 'resource.index')]
-    public function index(ExternalResourceIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): ExternalResourceCollection
     {
-        $resources = $request->getQuery()->index();
+        $query = new Query($request->validated());
 
-        return $resources->toResponse($request);
+        $resources = $action->index(ExternalResource::query(), $query, $request->schema());
+
+        return new ExternalResourceCollection($resources, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  ExternalResourceStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return ExternalResourceResource
      */
-    #[Route(fullUri: 'resource', name: 'resource.store', middleware: 'auth:sanctum')]
-    public function store(ExternalResourceStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): ExternalResourceResource
     {
-        $resource = $request->getQuery()->store();
+        $externalResource = $action->store(ExternalResource::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new ExternalResourceResource($externalResource, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  ExternalResourceShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  ExternalResource  $resource
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return ExternalResourceResource
      */
-    #[Route(fullUri: 'resource/{resource}', name: 'resource.show')]
-    public function show(ExternalResourceShowRequest $request, ExternalResource $resource): JsonResponse
+    public function show(ShowRequest $request, ExternalResource $resource, ShowAction $action): ExternalResourceResource
     {
-        $apiResource = $request->getQuery()->show($resource);
+        $query = new Query($request->validated());
 
-        return $apiResource->toResponse($request);
+        $show = $action->show($resource, $query, $request->schema());
+
+        return new ExternalResourceResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  ExternalResourceUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  ExternalResource  $resource
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return ExternalResourceResource
      */
-    #[Route(fullUri: 'resource/{resource}', name: 'resource.update', middleware: 'auth:sanctum')]
-    public function update(ExternalResourceUpdateRequest $request, ExternalResource $resource): JsonResponse
+    public function update(UpdateRequest $request, ExternalResource $resource, UpdateAction $action): ExternalResourceResource
     {
-        $apiResource = $request->getQuery()->update($resource);
+        $updated = $action->update($resource, $request->validated());
 
-        return $apiResource->toResponse($request);
+        return new ExternalResourceResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  ExternalResourceDestroyRequest  $request
      * @param  ExternalResource  $resource
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return ExternalResourceResource
      */
-    #[Route(fullUri: 'resource/{resource}', name: 'resource.destroy', middleware: 'auth:sanctum')]
-    public function destroy(ExternalResourceDestroyRequest $request, ExternalResource $resource): JsonResponse
+    public function destroy(ExternalResource $resource, DestroyAction $action): ExternalResourceResource
     {
-        $apiResource = $request->getQuery()->destroy($resource);
+        $deleted = $action->destroy($resource);
 
-        return $apiResource->toResponse($request);
+        return new ExternalResourceResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  ExternalResourceRestoreRequest  $request
      * @param  ExternalResource  $resource
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return ExternalResourceResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/resource/{resource}', name: 'resource.restore', middleware: 'auth:sanctum')]
-    public function restore(ExternalResourceRestoreRequest $request, ExternalResource $resource): JsonResponse
+    public function restore(ExternalResource $resource, RestoreAction $action): ExternalResourceResource
     {
-        $apiResource = $request->getQuery()->restore($resource);
+        $restored = $action->restore($resource);
 
-        return $apiResource->toResponse($request);
+        return new ExternalResourceResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  ExternalResourceForceDeleteRequest  $request
      * @param  ExternalResource  $resource
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/resource/{resource}', name: 'resource.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(ExternalResourceForceDeleteRequest $request, ExternalResource $resource): JsonResponse
+    public function forceDelete(ExternalResource $resource, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($resource);
+        $message = $action->forceDelete($resource);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

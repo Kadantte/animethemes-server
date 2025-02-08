@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models\Wiki\Anime;
 
+use App\Concerns\Models\Reportable;
+use App\Enums\Models\Wiki\AnimeSynonymType;
 use App\Events\Wiki\Anime\Synonym\SynonymCreated;
 use App\Events\Wiki\Anime\Synonym\SynonymDeleted;
 use App\Events\Wiki\Anime\Synonym\SynonymRestored;
@@ -11,9 +13,8 @@ use App\Events\Wiki\Anime\Synonym\SynonymUpdated;
 use App\Models\BaseModel;
 use App\Models\Wiki\Anime;
 use Database\Factories\Wiki\Anime\AnimeSynonymFactory;
-use ElasticScoutDriverPlus\Searchable;
+use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Laravel\Nova\Actions\Actionable;
 
 /**
  * Class AnimeSynonym.
@@ -22,12 +23,13 @@ use Laravel\Nova\Actions\Actionable;
  * @property int $anime_id
  * @property int $synonym_id
  * @property string|null $text
+ * @property AnimeSynonymType $type
  *
  * @method static AnimeSynonymFactory factory(...$parameters)
  */
 class AnimeSynonym extends BaseModel
 {
-    use Actionable;
+    use Reportable;
     use Searchable;
 
     final public const TABLE = 'anime_synonyms';
@@ -35,6 +37,7 @@ class AnimeSynonym extends BaseModel
     final public const ATTRIBUTE_ANIME = 'anime_id';
     final public const ATTRIBUTE_ID = 'synonym_id';
     final public const ATTRIBUTE_TEXT = 'text';
+    final public const ATTRIBUTE_TYPE = 'type';
 
     final public const RELATION_ANIME = 'anime';
     final public const RELATION_VIDEOS = 'anime.animethemes.animethemeentries.videos';
@@ -42,11 +45,12 @@ class AnimeSynonym extends BaseModel
     /**
      * The attributes that are mass assignable.
      *
-     * @var string[]
+     * @var list<string>
      */
     protected $fillable = [
         AnimeSynonym::ATTRIBUTE_ANIME,
         AnimeSynonym::ATTRIBUTE_TEXT,
+        AnimeSynonym::ATTRIBUTE_TYPE,
     ];
 
     /**
@@ -78,6 +82,18 @@ class AnimeSynonym extends BaseModel
     protected $primaryKey = AnimeSynonym::ATTRIBUTE_ID;
 
     /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            AnimeSynonym::ATTRIBUTE_TYPE => AnimeSynonymType::class,
+        ];
+    }
+
+    /**
      * Get name.
      *
      * @return string
@@ -88,9 +104,19 @@ class AnimeSynonym extends BaseModel
     }
 
     /**
+     * Get subtitle.
+     *
+     * @return string
+     */
+    public function getSubtitle(): string
+    {
+        return $this->anime->getName();
+    }
+
+    /**
      * Gets the anime that owns the synonym.
      *
-     * @return BelongsTo
+     * @return BelongsTo<Anime, $this>
      */
     public function anime(): BelongsTo
     {

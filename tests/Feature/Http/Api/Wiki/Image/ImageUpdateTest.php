@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Image;
 
+use App\Enums\Auth\CrudPermission;
 use App\Enums\Models\Wiki\ImageFacet;
 use App\Models\Auth\User;
 use App\Models\Wiki\Image;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -16,8 +17,6 @@ use Tests\TestCase;
  */
 class ImageUpdateTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Image Update Endpoint shall be protected by sanctum.
      *
@@ -27,14 +26,66 @@ class ImageUpdateTest extends TestCase
     {
         $image = Image::factory()->createOne();
 
+        $facet = Arr::random(ImageFacet::cases());
+
         $parameters = array_merge(
             Image::factory()->raw(),
-            [Image::ATTRIBUTE_FACET => ImageFacet::getRandomInstance()->description],
+            [Image::ATTRIBUTE_FACET => $facet->localize()],
         );
 
         $response = $this->put(route('api.image.update', ['image' => $image] + $parameters));
 
         $response->assertUnauthorized();
+    }
+
+    /**
+     * The Image Update Endpoint shall forbid users without the update image permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $image = Image::factory()->createOne();
+
+        $facet = Arr::random(ImageFacet::cases());
+
+        $parameters = array_merge(
+            Image::factory()->raw(),
+            [Image::ATTRIBUTE_FACET => $facet->localize()],
+        );
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.image.update', ['image' => $image] + $parameters));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Image Update Endpoint shall forbid users from updating an image that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $image = Image::factory()->trashed()->createOne();
+
+        $facet = Arr::random(ImageFacet::cases());
+
+        $parameters = array_merge(
+            Image::factory()->raw(),
+            [Image::ATTRIBUTE_FACET => $facet->localize()],
+        );
+
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Image::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->put(route('api.image.update', ['image' => $image] + $parameters));
+
+        $response->assertForbidden();
     }
 
     /**
@@ -46,12 +97,14 @@ class ImageUpdateTest extends TestCase
     {
         $image = Image::factory()->createOne();
 
+        $facet = Arr::random(ImageFacet::cases());
+
         $parameters = array_merge(
             Image::factory()->raw(),
-            [Image::ATTRIBUTE_FACET => ImageFacet::getRandomInstance()->description],
+            [Image::ATTRIBUTE_FACET => $facet->localize()],
         );
 
-        $user = User::factory()->withPermission('update image')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::UPDATE->format(Image::class))->createOne();
 
         Sanctum::actingAs($user);
 

@@ -4,126 +4,142 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki;
 
-use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Artist\ArtistDestroyRequest;
-use App\Http\Requests\Api\Wiki\Artist\ArtistForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Artist\ArtistIndexRequest;
-use App\Http\Requests\Api\Wiki\Artist\ArtistRestoreRequest;
-use App\Http\Requests\Api\Wiki\Artist\ArtistShowRequest;
-use App\Http\Requests\Api\Wiki\Artist\ArtistStoreRequest;
-use App\Http\Requests\Api\Wiki\Artist\ArtistUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Collection\ArtistCollection;
+use App\Http\Resources\Wiki\Resource\ArtistResource;
 use App\Models\Wiki\Artist;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class ArtistController.
  */
-class ArtistController extends Controller
+class ArtistController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Artist::class, 'artist');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  ArtistIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return ArtistCollection
      */
-    #[Route(fullUri: 'artist', name: 'artist.index')]
-    public function index(ArtistIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): ArtistCollection
     {
-        $query = $request->getQuery();
+        $query = new Query($request->validated());
 
-        if ($query->hasSearchCriteria()) {
-            return $query->search(PaginationStrategy::OFFSET())->toResponse($request);
-        }
+        $artists = $query->hasSearchCriteria()
+            ? $action->search($query, $request->schema())
+            : $action->index(Artist::query(), $query, $request->schema());
 
-        return $query->index()->toResponse($request);
+        return new ArtistCollection($artists, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  ArtistStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return ArtistResource
      */
-    #[Route(fullUri: 'artist', name: 'artist.store', middleware: 'auth:sanctum')]
-    public function store(ArtistStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): ArtistResource
     {
-        $resource = $request->getQuery()->store();
+        $artist = $action->store(Artist::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new ArtistResource($artist, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  ArtistShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Artist  $artist
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return ArtistResource
      */
-    #[Route(fullUri: 'artist/{artist}', name: 'artist.show')]
-    public function show(ArtistShowRequest $request, Artist $artist): JsonResponse
+    public function show(ShowRequest $request, Artist $artist, ShowAction $action): ArtistResource
     {
-        $resource = $request->getQuery()->show($artist);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($artist, $query, $request->schema());
+
+        return new ArtistResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  ArtistUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Artist  $artist
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return ArtistResource
      */
-    #[Route(fullUri: 'artist/{artist}', name: 'artist.update', middleware: 'auth:sanctum')]
-    public function update(ArtistUpdateRequest $request, Artist $artist): JsonResponse
+    public function update(UpdateRequest $request, Artist $artist, UpdateAction $action): ArtistResource
     {
-        $resource = $request->getQuery()->update($artist);
+        $updated = $action->update($artist, $request->validated());
 
-        return $resource->toResponse($request);
+        return new ArtistResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  ArtistDestroyRequest  $request
      * @param  Artist  $artist
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return ArtistResource
      */
-    #[Route(fullUri: 'artist/{artist}', name: 'artist.destroy', middleware: 'auth:sanctum')]
-    public function destroy(ArtistDestroyRequest $request, Artist $artist): JsonResponse
+    public function destroy(Artist $artist, DestroyAction $action): ArtistResource
     {
-        $resource = $request->getQuery()->destroy($artist);
+        $deleted = $action->destroy($artist);
 
-        return $resource->toResponse($request);
+        return new ArtistResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  ArtistRestoreRequest  $request
      * @param  Artist  $artist
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return ArtistResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/artist/{artist}', name: 'artist.restore', middleware: 'auth:sanctum')]
-    public function restore(ArtistRestoreRequest $request, Artist $artist): JsonResponse
+    public function restore(Artist $artist, RestoreAction $action): ArtistResource
     {
-        $resource = $request->getQuery()->restore($artist);
+        $restored = $action->restore($artist);
 
-        return $resource->toResponse($request);
+        return new ArtistResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  ArtistForceDeleteRequest  $request
      * @param  Artist  $artist
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/artist/{artist}', name: 'artist.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(ArtistForceDeleteRequest $request, Artist $artist): JsonResponse
+    public function forceDelete(Artist $artist, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($artist);
+        $message = $action->forceDelete($artist);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

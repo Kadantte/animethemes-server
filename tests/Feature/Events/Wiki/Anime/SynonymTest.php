@@ -10,6 +10,7 @@ use App\Events\Wiki\Anime\Synonym\SynonymRestored;
 use App\Events\Wiki\Anime\Synonym\SynonymUpdated;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
@@ -25,8 +26,6 @@ class SynonymTest extends TestCase
      */
     public function testSynonymCreatedEventDispatched(): void
     {
-        Event::fake();
-
         AnimeSynonym::factory()
             ->for(Anime::factory())
             ->createOne();
@@ -41,8 +40,6 @@ class SynonymTest extends TestCase
      */
     public function testSynonymDeletedEventDispatched(): void
     {
-        Event::fake();
-
         $synonym = AnimeSynonym::factory()
             ->for(Anime::factory())
             ->createOne();
@@ -59,8 +56,6 @@ class SynonymTest extends TestCase
      */
     public function testSynonymRestoredEventDispatched(): void
     {
-        Event::fake();
-
         $synonym = AnimeSynonym::factory()
             ->for(Anime::factory())
             ->createOne();
@@ -79,8 +74,6 @@ class SynonymTest extends TestCase
      */
     public function testSynonymRestoresQuietly(): void
     {
-        Event::fake();
-
         $synonym = AnimeSynonym::factory()
             ->for(Anime::factory())
             ->createOne();
@@ -97,8 +90,6 @@ class SynonymTest extends TestCase
      */
     public function testSynonymUpdatedEventDispatched(): void
     {
-        Event::fake();
-
         $synonym = AnimeSynonym::factory()
             ->for(Anime::factory())
             ->createOne();
@@ -111,5 +102,30 @@ class SynonymTest extends TestCase
         $synonym->save();
 
         Event::assertDispatched(SynonymUpdated::class);
+    }
+
+    /**
+     * The SynonymUpdated event shall contain embed fields.
+     *
+     * @return void
+     */
+    public function testSynonymUpdatedEventEmbedFields(): void
+    {
+        $synonym = AnimeSynonym::factory()
+            ->for(Anime::factory())
+            ->createOne();
+
+        $changes = AnimeSynonym::factory()
+            ->for(Anime::factory())
+            ->makeOne();
+
+        $synonym->fill($changes->getAttributes());
+        $synonym->save();
+
+        Event::assertDispatched(SynonymUpdated::class, function (SynonymUpdated $event) {
+            $message = $event->getDiscordMessage();
+
+            return ! empty(Arr::get($message->embed, 'fields'));
+        });
     }
 }

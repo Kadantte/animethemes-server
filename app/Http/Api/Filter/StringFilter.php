@@ -53,6 +53,7 @@ class StringFilter extends Filter
     public function getRules(): array
     {
         return [
+            'required',
             'string',
         ];
     }
@@ -65,10 +66,10 @@ class StringFilter extends Filter
     public function getAllowedComparisonOperators(): array
     {
         return [
-            ComparisonOperator::EQ(),
-            ComparisonOperator::NE(),
-            ComparisonOperator::LIKE(),
-            ComparisonOperator::NOTLIKE(),
+            ComparisonOperator::EQ,
+            ComparisonOperator::NE,
+            ComparisonOperator::LIKE,
+            ComparisonOperator::NOTLIKE,
         ];
     }
 }

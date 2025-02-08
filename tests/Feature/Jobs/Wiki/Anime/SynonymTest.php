@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Jobs\Wiki\Anime;
 
-use App\Constants\Config\FlagConstants;
+use App\Constants\FeatureConstants;
+use App\Events\Wiki\Anime\Synonym\SynonymCreated;
+use App\Events\Wiki\Anime\Synonym\SynonymDeleted;
+use App\Events\Wiki\Anime\Synonym\SynonymRestored;
+use App\Events\Wiki\Anime\Synonym\SynonymUpdated;
 use App\Jobs\SendDiscordNotificationJob;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeSynonym;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
+use Laravel\Pennant\Feature;
 use Tests\TestCase;
 
 /**
@@ -26,8 +31,9 @@ class SynonymTest extends TestCase
     {
         $anime = Anime::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SynonymCreated::class);
 
         AnimeSynonym::factory()->for($anime)->createOne();
 
@@ -45,8 +51,9 @@ class SynonymTest extends TestCase
             ->for(Anime::factory())
             ->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SynonymDeleted::class);
 
         $synonym->delete();
 
@@ -64,8 +71,9 @@ class SynonymTest extends TestCase
             ->for(Anime::factory())
             ->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SynonymRestored::class);
 
         $synonym->restore();
 
@@ -87,8 +95,9 @@ class SynonymTest extends TestCase
             ->for(Anime::factory())
             ->makeOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(SynonymUpdated::class);
 
         $synonym->fill($changes->getAttributes());
         $synonym->save();

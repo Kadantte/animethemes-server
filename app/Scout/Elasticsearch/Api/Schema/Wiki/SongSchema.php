@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Scout\Elasticsearch\Api\Schema\Wiki;
 
 use App\Http\Api\Include\AllowedInclude;
+use App\Http\Api\Schema\Wiki\GroupSchema;
 use App\Http\Resources\Wiki\Resource\SongResource;
 use App\Models\Wiki\Song;
 use App\Scout\Elasticsearch\Api\Field\Base\IdField;
 use App\Scout\Elasticsearch\Api\Field\Field;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Song\SongTitleField;
+use App\Scout\Elasticsearch\Api\Query\ElasticQuery;
+use App\Scout\Elasticsearch\Api\Query\Wiki\SongQuery;
 use App\Scout\Elasticsearch\Api\Schema\Schema;
 use App\Scout\Elasticsearch\Api\Schema\Wiki\Anime\ThemeSchema;
 
@@ -21,11 +24,11 @@ class SongSchema extends Schema
     /**
      * The model this schema represents.
      *
-     * @return string
+     * @return ElasticQuery
      */
-    public function model(): string
+    public function query(): ElasticQuery
     {
-        return Song::class;
+        return new SongQuery();
     }
 
     /**
@@ -45,11 +48,15 @@ class SongSchema extends Schema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), Song::RELATION_ANIME),
-            new AllowedInclude(new ArtistSchema(), Song::RELATION_ARTISTS),
-            new AllowedInclude(new ThemeSchema(), Song::RELATION_ANIMETHEMES),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), Song::RELATION_ANIME),
+                new AllowedInclude(new ArtistSchema(), Song::RELATION_ARTISTS),
+                new AllowedInclude(new GroupSchema(), Song::RELATION_THEME_GROUPS),
+                new AllowedInclude(new ThemeSchema(), Song::RELATION_ANIMETHEMES),
+            ]),
+            []
+        );
     }
 
     /**
@@ -62,8 +69,8 @@ class SongSchema extends Schema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Song::ATTRIBUTE_ID),
-                new SongTitleField(),
+                new IdField($this, Song::ATTRIBUTE_ID),
+                new SongTitleField($this),
             ],
         );
     }

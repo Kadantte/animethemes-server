@@ -8,9 +8,10 @@ use App\Contracts\Http\Api\Field\CreatableField;
 use App\Contracts\Http\Api\Field\UpdatableField;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Http\Api\Field\EnumField;
+use App\Http\Api\Schema\Schema;
 use App\Models\Wiki\Anime;
-use BenSampo\Enum\Rules\EnumValue;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rules\Enum;
 
 /**
  * Class AnimeSeasonField.
@@ -19,10 +20,12 @@ class AnimeSeasonField extends EnumField implements CreatableField, UpdatableFie
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(Anime::ATTRIBUTE_SEASON, AnimeSeason::class);
+        parent::__construct($schema, Anime::ATTRIBUTE_SEASON, AnimeSeason::class);
     }
 
     /**
@@ -35,7 +38,7 @@ class AnimeSeasonField extends EnumField implements CreatableField, UpdatableFie
     {
         return [
             'required',
-            new EnumValue(AnimeSeason::class),
+            new Enum(AnimeSeason::class),
         ];
     }
 
@@ -50,7 +53,7 @@ class AnimeSeasonField extends EnumField implements CreatableField, UpdatableFie
         return [
             'sometimes',
             'required',
-            new EnumValue(AnimeSeason::class),
+            new Enum(AnimeSeason::class),
         ];
     }
 }

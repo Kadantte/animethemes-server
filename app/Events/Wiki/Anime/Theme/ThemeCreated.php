@@ -34,6 +34,7 @@ class ThemeCreated extends WikiCreatedEvent implements UpdateRelatedIndicesEvent
     {
         parent::__construct($theme);
         $this->anime = $theme->anime;
+        $this->updateFirstTheme();
     }
 
     /**
@@ -69,5 +70,20 @@ class ThemeCreated extends WikiCreatedEvent implements UpdateRelatedIndicesEvent
             $entry->searchable();
             $entry->videos->each(fn (Video $video) => $video->searchable());
         });
+    }
+
+    /**
+     * Update the sequence attribute of the first theme when creating a new sequence theme.
+     * 
+     * @return void
+     */
+    protected function updateFirstTheme(): void
+    {
+        if ($this->getModel()->sequence >= 2) {
+            $this->anime->animethemes()->getQuery()
+                ->where(AnimeTheme::ATTRIBUTE_SEQUENCE, null)
+                ->where(AnimeTheme::ATTRIBUTE_TYPE, $this->getModel()->type)
+                ->update([AnimeTheme::ATTRIBUTE_SEQUENCE => 1]);
+        }
     }
 }

@@ -9,6 +9,7 @@ use App\Events\Document\Page\PageDeleted;
 use App\Events\Document\Page\PageRestored;
 use App\Events\Document\Page\PageUpdated;
 use App\Models\Document\Page;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
@@ -24,8 +25,6 @@ class PageTest extends TestCase
      */
     public function testPageCreatedEventDispatched(): void
     {
-        Event::fake();
-
         Page::factory()->createOne();
 
         Event::assertDispatched(PageCreated::class);
@@ -38,8 +37,6 @@ class PageTest extends TestCase
      */
     public function testPageDeletedEventDispatched(): void
     {
-        Event::fake();
-
         $page = Page::factory()->createOne();
 
         $page->delete();
@@ -54,8 +51,6 @@ class PageTest extends TestCase
      */
     public function testPageRestoredEventDispatched(): void
     {
-        Event::fake();
-
         $page = Page::factory()->createOne();
 
         $page->restore();
@@ -72,8 +67,6 @@ class PageTest extends TestCase
      */
     public function testPageRestoresQuietly(): void
     {
-        Event::fake();
-
         $page = Page::factory()->createOne();
 
         $page->restore();
@@ -88,8 +81,6 @@ class PageTest extends TestCase
      */
     public function testPageUpdatedEventDispatched(): void
     {
-        Event::fake();
-
         $page = Page::factory()->createOne();
         $changes = Page::factory()->makeOne();
 
@@ -97,5 +88,25 @@ class PageTest extends TestCase
         $page->save();
 
         Event::assertDispatched(PageUpdated::class);
+    }
+
+    /**
+     * The PageUpdated event shall contain embed fields.
+     *
+     * @return void
+     */
+    public function testPageUpdatedEventEmbedFields(): void
+    {
+        $page = Page::factory()->createOne();
+        $changes = Page::factory()->makeOne();
+
+        $page->fill($changes->getAttributes());
+        $page->save();
+
+        Event::assertDispatched(PageUpdated::class, function (PageUpdated $event) {
+            $message = $event->getDiscordMessage();
+
+            return ! empty(Arr::get($message->embed, 'fields'));
+        });
     }
 }

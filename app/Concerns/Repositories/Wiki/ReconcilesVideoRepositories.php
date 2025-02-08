@@ -4,79 +4,47 @@ declare(strict_types=1);
 
 namespace App\Concerns\Repositories\Wiki;
 
-use App\Concerns\Repositories\ReconcilesRepositories;
-use App\Models\Wiki\Video;
-use Closure;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Collection;
+use App\Actions\Repositories\ReconcileRepositoriesAction;
+use App\Actions\Repositories\Wiki\Video\ReconcileVideoRepositoriesAction;
+use App\Contracts\Repositories\RepositoryInterface;
+use App\Repositories\Eloquent\Wiki\VideoRepository as VideoDestinationRepository;
+use App\Repositories\Storage\Wiki\VideoRepository as VideoSourceRepository;
+use Illuminate\Support\Facades\App;
 
 /**
  * Trait ReconcilesVideoRepositories.
  */
 trait ReconcilesVideoRepositories
 {
-    use ReconcilesRepositories;
-
     /**
-     * The columns used for create and delete set operations.
+     * Get source repository for action.
      *
-     * @return string[]
+     * @param  array  $data
+     * @return RepositoryInterface|null
      */
-    protected function columnsForCreateDelete(): array
+    protected function getSourceRepository(array $data = []): ?RepositoryInterface
     {
-        return [
-            Video::ATTRIBUTE_BASENAME,
-            Video::ATTRIBUTE_ID,
-        ];
+        return App::make(VideoSourceRepository::class);
     }
 
     /**
-     * Callback for create and delete set operation item comparison.
+     * Get destination repository for action.
      *
-     * @return Closure
+     * @param  array  $data
+     * @return RepositoryInterface|null
      */
-    protected function diffCallbackForCreateDelete(): Closure
+    protected function getDestinationRepository(array $data = []): ?RepositoryInterface
     {
-        return fn (Video $first, Video $second) => $first->basename <=> $second->basename;
+        return App::make(VideoDestinationRepository::class);
     }
 
     /**
-     * The columns used for update set operation.
+     * Get the reconcile action.
      *
-     * @return string[]
+     * @return ReconcileRepositoriesAction
      */
-    protected function columnsForUpdate(): array
+    protected function reconcileAction(): ReconcileRepositoriesAction
     {
-        return [
-            Video::ATTRIBUTE_BASENAME,
-            Video::ATTRIBUTE_ID,
-            Video::ATTRIBUTE_PATH,
-            Video::ATTRIBUTE_SIZE,
-        ];
-    }
-
-    /**
-     * Callback for update set operation item comparison.
-     *
-     * @return Closure
-     */
-    protected function diffCallbackForUpdate(): Closure
-    {
-        return fn (Video $first, Video $second) => [$first->basename, $first->path, $first->size] <=> [$second->basename, $second->path, $second->size];
-    }
-
-    /**
-     * Get source model that has been updated for destination model.
-     *
-     * @param  Collection  $sourceModels
-     * @param  Model  $destinationModel
-     * @return Model|null
-     */
-    protected function resolveUpdatedModel(Collection $sourceModels, Model $destinationModel): ?Model
-    {
-        return $sourceModels->firstWhere(
-            Video::ATTRIBUTE_BASENAME,
-            $destinationModel->getAttribute(Video::ATTRIBUTE_BASENAME)
-        );
+        return new ReconcileVideoRepositoriesAction();
     }
 }

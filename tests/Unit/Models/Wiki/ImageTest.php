@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace Tests\Unit\Models\Wiki;
 
 use App\Enums\Models\Wiki\ImageFacet;
+use App\Events\Wiki\Image\ImageForceDeleting;
+use App\Models\List\Playlist;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Artist;
 use App\Models\Wiki\Image;
 use App\Models\Wiki\Studio;
-use App\Pivots\AnimeImage;
-use App\Pivots\ArtistImage;
-use App\Pivots\StudioImage;
+use App\Pivots\Wiki\AnimeImage;
+use App\Pivots\Wiki\ArtistImage;
+use App\Pivots\Wiki\StudioImage;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
 use Illuminate\Http\Testing\File;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -41,20 +45,6 @@ class ImageTest extends TestCase
     }
 
     /**
-     * Images shall be auditable.
-     *
-     * @return void
-     */
-    public function testAuditable(): void
-    {
-        Config::set('audit.console', true);
-
-        $image = Image::factory()->createOne();
-
-        static::assertEquals(1, $image->audits()->count());
-    }
-
-    /**
      * Images shall be nameable.
      *
      * @return void
@@ -64,6 +54,18 @@ class ImageTest extends TestCase
         $image = Image::factory()->createOne();
 
         static::assertIsString($image->getName());
+    }
+
+    /**
+     * Images shall have subtitle.
+     *
+     * @return void
+     */
+    public function testHasSubtitle(): void
+    {
+        $image = Image::factory()->createOne();
+
+        static::assertIsString($image->getSubtitle());
     }
 
     /**
@@ -124,18 +126,38 @@ class ImageTest extends TestCase
     }
 
     /**
+     * Image shall have a many-to-many relationship with the type Playlist.
+     *
+     * @return void
+     */
+    public function testPlaylists(): void
+    {
+        $playlistCount = $this->faker->randomDigitNotNull();
+
+        $image = Image::factory()
+            ->has(Playlist::factory()->count($playlistCount))
+            ->createOne();
+
+        static::assertInstanceOf(BelongsToMany::class, $image->playlists());
+        static::assertEquals($playlistCount, $image->playlists()->count());
+        static::assertInstanceOf(Playlist::class, $image->playlists()->first());
+    }
+
+    /**
      * The image shall not be deleted from storage when the Image is deleted.
      *
      * @return void
      */
     public function testImageStorageDeletion(): void
     {
-        $fs = Storage::fake('images');
+        $fs = Storage::fake(Config::get('image.disk'));
         $file = File::fake()->image($this->faker->word().'.jpg');
         $fsFile = $fs->putFile('', $file);
 
+        $facet = Arr::random(ImageFacet::cases());
+
         $image = Image::factory()->createOne([
-            Image::ATTRIBUTE_FACET => ImageFacet::getRandomValue(),
+            Image::ATTRIBUTE_FACET => $facet->value,
             Image::ATTRIBUTE_PATH => $fsFile,
         ]);
 
@@ -151,12 +173,16 @@ class ImageTest extends TestCase
      */
     public function testImageStorageForceDeletion(): void
     {
-        $fs = Storage::fake('images');
+        Event::fakeExcept(ImageForceDeleting::class);
+
+        $fs = Storage::fake(Config::get('image.disk'));
         $file = File::fake()->image($this->faker->word().'.jpg');
         $fsFile = $fs->putFile('', $file);
 
+        $facet = Arr::random(ImageFacet::cases());
+
         $image = Image::factory()->createOne([
-            Image::ATTRIBUTE_FACET => ImageFacet::getRandomValue(),
+            Image::ATTRIBUTE_FACET => $facet->value,
             Image::ATTRIBUTE_PATH => $fsFile,
         ]);
 

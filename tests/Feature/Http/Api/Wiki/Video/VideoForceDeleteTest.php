@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Video;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Video;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,10 +15,8 @@ use Tests\TestCase;
  */
 class VideoForceDeleteTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
-     * The Video Force Destroy Endpoint shall be protected by sanctum.
+     * The Video Force Delete Endpoint shall be protected by sanctum.
      *
      * @return void
      */
@@ -32,7 +30,25 @@ class VideoForceDeleteTest extends TestCase
     }
 
     /**
-     * The Video Force Destroy Endpoint shall force delete the video.
+     * The Video Force Delete Endpoint shall forbid users without the force delete video permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $video = Video::factory()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.video.forceDelete', ['video' => $video]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Video Force Delete Endpoint shall force delete the video.
      *
      * @return void
      */
@@ -40,7 +56,7 @@ class VideoForceDeleteTest extends TestCase
     {
         $video = Video::factory()->createOne();
 
-        $user = User::factory()->withPermission('force delete video')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::FORCE_DELETE->format(Video::class))->createOne();
 
         Sanctum::actingAs($user);
 

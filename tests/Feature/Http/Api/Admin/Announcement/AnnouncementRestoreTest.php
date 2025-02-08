@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Admin\Announcement;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Admin\Announcement;
 use App\Models\Auth\User;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class AnnouncementRestoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Announcement Restore Endpoint shall be protected by sanctum.
      *
@@ -24,13 +22,47 @@ class AnnouncementRestoreTest extends TestCase
      */
     public function testProtected(): void
     {
-        $announcement = Announcement::factory()->createOne();
-
-        $announcement->delete();
+        $announcement = Announcement::factory()->trashed()->createOne();
 
         $response = $this->patch(route('api.announcement.restore', ['announcement' => $announcement]));
 
         $response->assertUnauthorized();
+    }
+
+    /**
+     * The Announcement Restore Endpoint shall forbid users without the restore announcement permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $announcement = Announcement::factory()->trashed()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.announcement.restore', ['announcement' => $announcement]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Announcement Restore Endpoint shall forbid users from restoring an announcement that isn't trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $announcement = Announcement::factory()->createOne();
+
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Announcement::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.announcement.restore', ['announcement' => $announcement]));
+
+        $response->assertForbidden();
     }
 
     /**
@@ -40,11 +72,9 @@ class AnnouncementRestoreTest extends TestCase
      */
     public function testRestored(): void
     {
-        $announcement = Announcement::factory()->createOne();
+        $announcement = Announcement::factory()->trashed()->createOne();
 
-        $announcement->delete();
-
-        $user = User::factory()->withPermission('restore announcement')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Announcement::class))->createOne();
 
         Sanctum::actingAs($user);
 

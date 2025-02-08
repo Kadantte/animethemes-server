@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Admin\Announcement;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Admin\Announcement;
 use App\Models\Auth\User;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,10 +15,8 @@ use Tests\TestCase;
  */
 class AnnouncementForceDeleteTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
-     * The Announcement Force Destroy Endpoint shall be protected by sanctum.
+     * The Announcement Force Delete Endpoint shall be protected by sanctum.
      *
      * @return void
      */
@@ -32,7 +30,25 @@ class AnnouncementForceDeleteTest extends TestCase
     }
 
     /**
-     * The Announcement Force Destroy Endpoint shall force delete the announcement.
+     * The Announcement Force Delete Endpoint shall forbid users without the force delete announcement permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $announcement = Announcement::factory()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.announcement.forceDelete', ['announcement' => $announcement]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Announcement Force Delete Endpoint shall force delete the announcement.
      *
      * @return void
      */
@@ -40,7 +56,7 @@ class AnnouncementForceDeleteTest extends TestCase
     {
         $announcement = Announcement::factory()->createOne();
 
-        $user = User::factory()->withPermission('force delete announcement')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::FORCE_DELETE->format(Announcement::class))->createOne();
 
         Sanctum::actingAs($user);
 

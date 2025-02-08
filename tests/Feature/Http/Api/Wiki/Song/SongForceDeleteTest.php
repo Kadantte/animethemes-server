@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Song;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Song;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,10 +15,8 @@ use Tests\TestCase;
  */
 class SongForceDeleteTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
-     * The Song Force Destroy Endpoint shall be protected by sanctum.
+     * The Song Force Delete Endpoint shall be protected by sanctum.
      *
      * @return void
      */
@@ -32,7 +30,25 @@ class SongForceDeleteTest extends TestCase
     }
 
     /**
-     * The Song Force Destroy Endpoint shall force delete the song.
+     * The Song Force Delete Endpoint shall forbid users without the force delete song permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $song = Song::factory()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.song.forceDelete', ['song' => $song]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Song Force Delete Endpoint shall force delete the song.
      *
      * @return void
      */
@@ -40,7 +56,7 @@ class SongForceDeleteTest extends TestCase
     {
         $song = Song::factory()->createOne();
 
-        $user = User::factory()->withPermission('force delete song')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::FORCE_DELETE->format(Song::class))->createOne();
 
         Sanctum::actingAs($user);
 

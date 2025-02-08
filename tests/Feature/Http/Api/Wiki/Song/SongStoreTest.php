@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Song;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Song;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class SongStoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Song Store Endpoint shall be protected by sanctum.
      *
@@ -32,6 +30,24 @@ class SongStoreTest extends TestCase
     }
 
     /**
+     * The Song Store Endpoint shall forbid users without the create song permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $song = Song::factory()->makeOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->post(route('api.song.store', $song->toArray()));
+
+        $response->assertForbidden();
+    }
+
+    /**
      * The Song Store Endpoint shall create a song.
      *
      * @return void
@@ -40,13 +56,13 @@ class SongStoreTest extends TestCase
     {
         $parameters = Song::factory()->raw();
 
-        $user = User::factory()->withPermission('create song')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::CREATE->format(Song::class))->createOne();
 
         Sanctum::actingAs($user);
 
         $response = $this->post(route('api.song.store', $parameters));
 
         $response->assertCreated();
-        static::assertDatabaseCount(Song::TABLE, 1);
+        static::assertDatabaseCount(Song::class, 1);
     }
 }

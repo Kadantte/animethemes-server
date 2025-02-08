@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Api\Schema\Wiki\Anime\Theme;
 
+use App\Contracts\Http\Api\Schema\SearchableSchema;
 use App\Http\Api\Field\Base\IdField;
 use App\Http\Api\Field\Field;
 use App\Http\Api\Field\Wiki\Anime\Theme\Entry\EntryEpisodesField;
@@ -19,22 +20,13 @@ use App\Http\Api\Schema\Wiki\AnimeSchema;
 use App\Http\Api\Schema\Wiki\VideoSchema;
 use App\Http\Resources\Wiki\Anime\Theme\Resource\EntryResource;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class EntrySchema.
  */
-class EntrySchema extends EloquentSchema
+class EntrySchema extends EloquentSchema implements SearchableSchema
 {
-    /**
-     * The model this schema represents.
-     *
-     * @return string
-     */
-    public function model(): string
-    {
-        return AnimeThemeEntry::class;
-    }
-
     /**
      * Get the type of the resource.
      *
@@ -52,11 +44,14 @@ class EntrySchema extends EloquentSchema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), AnimeThemeEntry::RELATION_ANIME),
-            new AllowedInclude(new ThemeSchema(), AnimeThemeEntry::RELATION_THEME),
-            new AllowedInclude(new VideoSchema(), AnimeThemeEntry::RELATION_VIDEOS),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), AnimeThemeEntry::RELATION_ANIME),
+                new AllowedInclude(new ThemeSchema(), AnimeThemeEntry::RELATION_THEME),
+                new AllowedInclude(new VideoSchema(), AnimeThemeEntry::RELATION_VIDEOS),
+            ]),
+            []
+        );
     }
 
     /**
@@ -69,14 +64,24 @@ class EntrySchema extends EloquentSchema
         return array_merge(
             parent::fields(),
             [
-                new IdField(AnimeThemeEntry::ATTRIBUTE_ID),
-                new EntryEpisodesField(),
-                new EntryNotesField(),
-                new EntryNsfwField(),
-                new EntrySpoilerField(),
-                new EntryVersionField(),
-                new EntryThemeIdField(),
+                new IdField($this, AnimeThemeEntry::ATTRIBUTE_ID),
+                new EntryEpisodesField($this),
+                new EntryNotesField($this),
+                new EntryNsfwField($this),
+                new EntrySpoilerField($this),
+                new EntryVersionField($this),
+                new EntryThemeIdField($this),
             ],
         );
+    }
+
+    /**
+     * Get the model of the schema.
+     *
+     * @return Model
+     */
+    public function model(): Model
+    {
+        return new AnimeThemeEntry();
     }
 }

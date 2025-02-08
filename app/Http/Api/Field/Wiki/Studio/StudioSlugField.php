@@ -7,6 +7,7 @@ namespace App\Http\Api\Field\Wiki\Studio;
 use App\Contracts\Http\Api\Field\CreatableField;
 use App\Contracts\Http\Api\Field\UpdatableField;
 use App\Http\Api\Field\StringField;
+use App\Http\Api\Schema\Schema;
 use App\Models\Wiki\Studio;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,10 +19,12 @@ class StudioSlugField extends StringField implements CreatableField, UpdatableFi
 {
     /**
      * Create a new field instance.
+     *
+     * @param  Schema  $schema
      */
-    public function __construct()
+    public function __construct(Schema $schema)
     {
-        parent::__construct(Studio::ATTRIBUTE_SLUG);
+        parent::__construct($schema, Studio::ATTRIBUTE_SLUG);
     }
 
     /**
@@ -36,7 +39,7 @@ class StudioSlugField extends StringField implements CreatableField, UpdatableFi
             'required',
             'max:192',
             'alpha_dash',
-            Rule::unique(Studio::TABLE),
+            Rule::unique(Studio::class),
         ];
     }
 
@@ -53,7 +56,7 @@ class StudioSlugField extends StringField implements CreatableField, UpdatableFi
             'required',
             'max:192',
             'alpha_dash',
-            Rule::unique(Studio::TABLE)->ignore($request->route('studio'), Studio::ATTRIBUTE_ID),
+            Rule::unique(Studio::class)->ignore($request->route('studio'), Studio::ATTRIBUTE_ID),
         ];
     }
 }

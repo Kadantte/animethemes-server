@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Video;
 
+use App\Enums\Models\Wiki\AnimeMediaFormat;
 use App\Enums\Models\Wiki\AnimeSeason;
 use App\Enums\Models\Wiki\ThemeType;
 use App\Http\Api\Field\Field;
@@ -11,18 +12,20 @@ use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\IncludeParser;
-use App\Http\Api\Query\Wiki\Video\VideoReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Wiki\VideoSchema;
 use App\Http\Resources\Wiki\Resource\VideoResource;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Anime\Theme\AnimeThemeEntry;
+use App\Models\Wiki\Audio;
 use App\Models\Wiki\Video;
+use App\Models\Wiki\Video\VideoScript;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -31,7 +34,6 @@ use Tests\TestCase;
 class VideoShowTest extends TestCase
 {
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Video Show Endpoint shall return a Video Resource.
@@ -47,7 +49,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery()))
+                    new VideoResource($video, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -63,16 +65,14 @@ class VideoShowTest extends TestCase
      */
     public function testSoftDelete(): void
     {
-        $video = Video::factory()->createOne();
-
-        $video->delete();
+        $video = Video::factory()->trashed()->createOne();
 
         $response = $this->get(route('api.video.show', ['video' => $video]));
 
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery()))
+                    new VideoResource($video, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -101,6 +101,8 @@ class VideoShowTest extends TestCase
         ];
 
         $video = Video::factory()
+            ->for(Audio::factory())
+            ->has(VideoScript::factory(), Video::RELATION_SCRIPT)
             ->has(
                 AnimeThemeEntry::factory()
                     ->count($this->faker->randomDigitNotNull())
@@ -113,7 +115,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -148,7 +150,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -192,7 +194,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -236,7 +238,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -285,58 +287,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
-                        ->response()
-                        ->getData()
-                ),
-                true
-            )
-        );
-    }
-
-    /**
-     * The Video Show Endpoint shall support constrained eager loading of themes by group.
-     *
-     * @return void
-     */
-    public function testThemesByGroup(): void
-    {
-        $groupFilter = $this->faker->word();
-        $excludedGroup = $this->faker->word();
-
-        $parameters = [
-            FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_GROUP => $groupFilter,
-            ],
-            IncludeParser::param() => Video::RELATION_ANIMETHEME,
-        ];
-
-        $video = Video::factory()
-            ->has(
-                AnimeThemeEntry::factory()
-                    ->count($this->faker->randomDigitNotNull())
-                    ->for(
-                        AnimeTheme::factory()
-                            ->for(Anime::factory())
-                            ->state([
-                                AnimeTheme::ATTRIBUTE_GROUP => $this->faker->boolean() ? $groupFilter : $excludedGroup,
-                            ])
-                    )
-            )
-            ->createOne();
-
-        $video->unsetRelations()->load([
-            Video::RELATION_ANIMETHEME => function (BelongsTo $query) use ($groupFilter) {
-                $query->where(AnimeTheme::ATTRIBUTE_GROUP, $groupFilter);
-            },
-        ]);
-
-        $response = $this->get(route('api.video.show', ['video' => $video] + $parameters));
-
-        $response->assertJson(
-            json_decode(
-                json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -387,7 +338,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -403,11 +354,11 @@ class VideoShowTest extends TestCase
      */
     public function testThemesByType(): void
     {
-        $typeFilter = ThemeType::getRandomInstance();
+        $typeFilter = Arr::random(ThemeType::cases());
 
         $parameters = [
             FilterParser::param() => [
-                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->description,
+                AnimeTheme::ATTRIBUTE_TYPE => $typeFilter->localize(),
             ],
             IncludeParser::param() => Video::RELATION_ANIMETHEME,
         ];
@@ -431,7 +382,51 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
+                        ->response()
+                        ->getData()
+                ),
+                true
+            )
+        );
+    }
+
+    /**
+     * The Video Show Endpoint shall support constrained eager loading of anime by media format.
+     *
+     * @return void
+     */
+    public function testAnimeByMediaFormat(): void
+    {
+        $mediaFormatFilter = Arr::random(AnimeMediaFormat::cases());
+
+        $parameters = [
+            FilterParser::param() => [
+                Anime::ATTRIBUTE_MEDIA_FORMAT => $mediaFormatFilter->localize(),
+            ],
+            IncludeParser::param() => Video::RELATION_ANIME,
+        ];
+
+        $video = Video::factory()
+            ->has(
+                AnimeThemeEntry::factory()
+                    ->count($this->faker->randomDigitNotNull())
+                    ->for(AnimeTheme::factory()->for(Anime::factory()))
+            )
+            ->createOne();
+
+        $video->unsetRelations()->load([
+            Video::RELATION_ANIME => function (BelongsTo $query) use ($mediaFormatFilter) {
+                $query->where(Anime::ATTRIBUTE_MEDIA_FORMAT, $mediaFormatFilter->value);
+            },
+        ]);
+
+        $response = $this->get(route('api.video.show', ['video' => $video] + $parameters));
+
+        $response->assertJson(
+            json_decode(
+                json_encode(
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -447,11 +442,11 @@ class VideoShowTest extends TestCase
      */
     public function testAnimeBySeason(): void
     {
-        $seasonFilter = AnimeSeason::getRandomInstance();
+        $seasonFilter = Arr::random(AnimeSeason::cases());
 
         $parameters = [
             FilterParser::param() => [
-                Anime::ATTRIBUTE_SEASON => $seasonFilter->description,
+                Anime::ATTRIBUTE_SEASON => $seasonFilter->localize(),
             ],
             IncludeParser::param() => Video::RELATION_ANIME,
         ];
@@ -475,7 +470,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -528,7 +523,7 @@ class VideoShowTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new VideoResource($video, new VideoReadQuery($parameters)))
+                    new VideoResource($video, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Events\Wiki\ExternalResource;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\ExternalResource as ExternalResourceFilament;
 use App\Models\Wiki\ExternalResource;
-use App\Nova\Resources\Wiki\ExternalResource as ExternalResourceResource;
 
 /**
  * Class ExternalResourceDeleted.
@@ -46,7 +46,7 @@ class ExternalResourceDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -56,13 +56,13 @@ class ExternalResourceDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = ExternalResourceResource::uriKey();
+        $uriKey = ExternalResourceFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

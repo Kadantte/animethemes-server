@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 namespace App\Listeners;
 
-use App\Constants\Config\FlagConstants;
+use App\Constants\FeatureConstants;
 use App\Contracts\Events\DiscordMessageEvent;
 use App\Jobs\SendDiscordNotificationJob;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use Laravel\Pennant\Feature;
 
 /**
  * Class SendDiscordNotification.
  */
-class SendDiscordNotification implements ShouldQueue
+class SendDiscordNotification
 {
-    use InteractsWithQueue;
-
     /**
      * Handle the event.
      *
@@ -25,8 +22,10 @@ class SendDiscordNotification implements ShouldQueue
      */
     public function handle(DiscordMessageEvent $event): void
     {
-        if (config(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, false)) {
-            SendDiscordNotificationJob::dispatch($event);
+        if (Feature::for(null)->active(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS) && $event->shouldSendDiscordMessage()) {
+            SendDiscordNotificationJob::dispatch($event)
+                ->onQueue('discord')
+                ->afterCommit();
         }
     }
 }

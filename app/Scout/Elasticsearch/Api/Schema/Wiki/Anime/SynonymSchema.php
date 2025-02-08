@@ -10,8 +10,12 @@ use App\Models\Wiki\Anime\AnimeSynonym;
 use App\Scout\Elasticsearch\Api\Field\Base\IdField;
 use App\Scout\Elasticsearch\Api\Field\Field;
 use App\Scout\Elasticsearch\Api\Field\Wiki\Anime\Synonym\SynonymTextField;
+use App\Scout\Elasticsearch\Api\Field\Wiki\Anime\Synonym\SynonymTypeField;
+use App\Scout\Elasticsearch\Api\Query\ElasticQuery;
+use App\Scout\Elasticsearch\Api\Query\Wiki\Anime\SynonymQuery;
 use App\Scout\Elasticsearch\Api\Schema\Schema;
 use App\Scout\Elasticsearch\Api\Schema\Wiki\AnimeSchema;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Class SynonymSchema.
@@ -21,11 +25,11 @@ class SynonymSchema extends Schema
     /**
      * The model this schema represents.
      *
-     * @return string
+     * @return ElasticQuery
      */
-    public function model(): string
+    public function query(): ElasticQuery
     {
-        return AnimeSynonym::class;
+        return new SynonymQuery();
     }
 
     /**
@@ -45,9 +49,12 @@ class SynonymSchema extends Schema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), AnimeSynonym::RELATION_ANIME),
-        ];
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), AnimeSynonym::RELATION_ANIME),
+            ]),
+            []
+        );
     }
 
     /**
@@ -60,9 +67,20 @@ class SynonymSchema extends Schema
         return array_merge(
             parent::fields(),
             [
-                new IdField(AnimeSynonym::ATTRIBUTE_ID),
-                new SynonymTextField(),
+                new IdField($this, AnimeSynonym::ATTRIBUTE_ID),
+                new SynonymTextField($this),
+                new SynonymTypeField($this),
             ],
         );
+    }
+
+    /**
+     * Get the model of the schema.
+     *
+     * @return Model
+     */
+    public function model(): Model
+    {
+        return new AnimeSynonym();
     }
 }

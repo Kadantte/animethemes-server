@@ -9,7 +9,7 @@ use App\Http\Api\Criteria\Paging\Criteria;
 use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Arr;
 use Tests\TestCase;
 
 /**
@@ -37,16 +37,16 @@ class CriteriaTest extends TestCase
              */
             public function getStrategy(): PaginationStrategy
             {
-                return PaginationStrategy::getRandomInstance();
+                return Arr::random(PaginationStrategy::cases());
             }
 
             /**
              * Paginate the query.
              *
              * @param  Builder  $builder
-             * @return Collection|Paginator
+             * @return Paginator
              */
-            public function paginate(Builder $builder): Collection|Paginator
+            public function paginate(Builder $builder): Paginator
             {
                 return $builder->paginate();
             }
@@ -73,16 +73,16 @@ class CriteriaTest extends TestCase
              */
             public function getStrategy(): PaginationStrategy
             {
-                return PaginationStrategy::getRandomInstance();
+                return Arr::random(PaginationStrategy::cases());
             }
 
             /**
              * Paginate the query.
              *
              * @param  Builder  $builder
-             * @return Collection|Paginator
+             * @return Paginator
              */
-            public function paginate(Builder $builder): Collection|Paginator
+            public function paginate(Builder $builder): Paginator
             {
                 return $builder->paginate();
             }
@@ -109,16 +109,16 @@ class CriteriaTest extends TestCase
              */
             public function getStrategy(): PaginationStrategy
             {
-                return PaginationStrategy::getRandomInstance();
+                return Arr::random(PaginationStrategy::cases());
             }
 
             /**
              * Paginate the query.
              *
              * @param  Builder  $builder
-             * @return Collection|Paginator
+             * @return Paginator
              */
-            public function paginate(Builder $builder): Collection|Paginator
+            public function paginate(Builder $builder): Paginator
             {
                 return $builder->paginate();
             }

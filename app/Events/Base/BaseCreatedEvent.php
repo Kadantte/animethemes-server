@@ -14,7 +14,8 @@ use NotificationChannels\Discord\DiscordMessage;
 /**
  * Class BaseCreatedEvent.
  *
- * @template TModel of \App\Models\BaseModel
+ * @template TModel of \Illuminate\Database\Eloquent\Model
+ *
  * @extends BaseEvent<TModel>
  */
 abstract class BaseCreatedEvent extends BaseEvent implements DiscordMessageEvent
@@ -29,10 +30,25 @@ abstract class BaseCreatedEvent extends BaseEvent implements DiscordMessageEvent
      */
     public function getDiscordMessage(): DiscordMessage
     {
-        return DiscordMessage::create('', [
-            'description' => $this->getDiscordMessageDescription(),
-            'color' => EmbedColor::GREEN,
-        ]);
+        $embed = array_merge(
+            [
+                'description' => $this->getDiscordMessageDescription(),
+                'color' => EmbedColor::GREEN->value,
+            ],
+            $this->getUserFooter(),
+        );
+
+        return DiscordMessage::create('', $embed);
+    }
+
+    /**
+     * Determine if the message should be sent.
+     *
+     * @return bool
+     */
+    public function shouldSendDiscordMessage(): bool
+    {
+        return true;
     }
 
     /**

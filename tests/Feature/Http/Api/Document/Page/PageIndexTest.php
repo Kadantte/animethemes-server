@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Document\Page;
 
+use App\Concerns\Actions\Http\Api\SortsModels;
 use App\Contracts\Http\Api\Field\SortableField;
 use App\Enums\Http\Api\Filter\TrashedStatus;
 use App\Enums\Http\Api\Sort\Direction;
@@ -15,15 +16,16 @@ use App\Http\Api\Parser\FieldParser;
 use App\Http\Api\Parser\FilterParser;
 use App\Http\Api\Parser\PagingParser;
 use App\Http\Api\Parser\SortParser;
-use App\Http\Api\Query\Document\Page\PageReadQuery;
+use App\Http\Api\Query\Query;
 use App\Http\Api\Schema\Document\PageSchema;
+use App\Http\Api\Sort\Sort;
 use App\Http\Resources\Document\Collection\PageCollection;
 use App\Http\Resources\Document\Resource\PageResource;
 use App\Models\BaseModel;
 use App\Models\Document\Page;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\WithFaker;
-use Illuminate\Foundation\Testing\WithoutEvents;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -31,8 +33,8 @@ use Tests\TestCase;
  */
 class PageIndexTest extends TestCase
 {
+    use SortsModels;
     use WithFaker;
-    use WithoutEvents;
 
     /**
      * By default, the Page Index Endpoint shall return a collection of Page Resources.
@@ -48,7 +50,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($pages, new PageReadQuery()))
+                    new PageCollection($pages, new Query())
                         ->response()
                         ->getData()
                 ),
@@ -101,7 +103,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($pages, new PageReadQuery($parameters)))
+                    new PageCollection($pages, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -119,25 +121,28 @@ class PageIndexTest extends TestCase
     {
         $schema = new PageSchema();
 
+        /** @var Sort $sort */
         $sort = collect($schema->fields())
             ->filter(fn (Field $field) => $field instanceof SortableField)
             ->map(fn (SortableField $field) => $field->getSort())
             ->random();
 
         $parameters = [
-            SortParser::param() => $sort->format(Direction::getRandomInstance()),
+            SortParser::param() => $sort->format(Arr::random(Direction::cases())),
         ];
 
-        $query = new PageReadQuery($parameters);
+        $query = new Query($parameters);
 
         Page::factory()->count($this->faker->randomDigitNotNull())->create();
 
         $response = $this->get(route('api.page.index', $parameters));
 
+        $pages = $this->sort(Page::query(), $query, $schema)->get();
+
         $response->assertJson(
             json_decode(
                 json_encode(
-                    $query->collection($query->index())
+                    new PageCollection($pages, $query)
                         ->response()
                         ->getData()
                 ),
@@ -180,7 +185,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($page, new PageReadQuery($parameters)))
+                    new PageCollection($page, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -223,7 +228,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($page, new PageReadQuery($parameters)))
+                    new PageCollection($page, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -241,7 +246,7 @@ class PageIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITHOUT->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -250,10 +255,7 @@ class PageIndexTest extends TestCase
 
         Page::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deletePage = Page::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deletePage->each(function (Page $page) {
-            $page->delete();
-        });
+        Page::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $page = Page::withoutTrashed()->get();
 
@@ -262,7 +264,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($page, new PageReadQuery($parameters)))
+                    new PageCollection($page, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -280,7 +282,7 @@ class PageIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -289,10 +291,7 @@ class PageIndexTest extends TestCase
 
         Page::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deletePage = Page::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deletePage->each(function (Page $page) {
-            $page->delete();
-        });
+        Page::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $page = Page::withTrashed()->get();
 
@@ -301,7 +300,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($page, new PageReadQuery($parameters)))
+                    new PageCollection($page, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -319,7 +318,7 @@ class PageIndexTest extends TestCase
     {
         $parameters = [
             FilterParser::param() => [
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::ONLY->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -328,10 +327,7 @@ class PageIndexTest extends TestCase
 
         Page::factory()->count($this->faker->randomDigitNotNull())->create();
 
-        $deletePage = Page::factory()->count($this->faker->randomDigitNotNull())->create();
-        $deletePage->each(function (Page $page) {
-            $page->delete();
-        });
+        Page::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
 
         $page = Page::onlyTrashed()->get();
 
@@ -340,7 +336,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($page, new PageReadQuery($parameters)))
+                    new PageCollection($page, new Query($parameters))
                         ->response()
                         ->getData()
                 ),
@@ -362,7 +358,7 @@ class PageIndexTest extends TestCase
         $parameters = [
             FilterParser::param() => [
                 BaseModel::ATTRIBUTE_DELETED_AT => $deletedFilter,
-                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH,
+                TrashedCriteria::PARAM_VALUE => TrashedStatus::WITH->value,
             ],
             PagingParser::param() => [
                 OffsetCriteria::SIZE_PARAM => Criteria::MAX_RESULTS,
@@ -370,17 +366,11 @@ class PageIndexTest extends TestCase
         ];
 
         Carbon::withTestNow($deletedFilter, function () {
-            $pages = Page::factory()->count($this->faker->randomDigitNotNull())->create();
-            $pages->each(function (Page $page) {
-                $page->delete();
-            });
+            Page::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         Carbon::withTestNow($excludedDate, function () {
-            $pages = Page::factory()->count($this->faker->randomDigitNotNull())->create();
-            $pages->each(function (Page $page) {
-                $page->delete();
-            });
+            Page::factory()->trashed()->count($this->faker->randomDigitNotNull())->create();
         });
 
         $page = Page::withTrashed()->where(BaseModel::ATTRIBUTE_DELETED_AT, $deletedFilter)->get();
@@ -390,7 +380,7 @@ class PageIndexTest extends TestCase
         $response->assertJson(
             json_decode(
                 json_encode(
-                    (new PageCollection($page, new PageReadQuery($parameters)))
+                    new PageCollection($page, new Query($parameters))
                         ->response()
                         ->getData()
                 ),

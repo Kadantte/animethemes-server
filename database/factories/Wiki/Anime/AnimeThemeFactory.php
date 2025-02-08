@@ -7,6 +7,7 @@ namespace Database\Factories\Wiki\Anime;
 use App\Enums\Models\Wiki\ThemeType;
 use App\Models\Wiki\Anime\AnimeTheme;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Arr;
 
 /**
  * Class AnimeThemeFactory.
@@ -28,15 +29,16 @@ class AnimeThemeFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
+        $type = Arr::random([ThemeType::OP, ThemeType::ED]);
+
         return [
-            AnimeTheme::ATTRIBUTE_GROUP => $this->faker->words(3, true),
-            AnimeTheme::ATTRIBUTE_SEQUENCE => $this->faker->randomDigitNotNull(),
-            AnimeTheme::ATTRIBUTE_SLUG => $this->faker->word(),
-            AnimeTheme::ATTRIBUTE_TYPE => ThemeType::getRandomValue(),
+            AnimeTheme::ATTRIBUTE_SEQUENCE => fake()->randomDigitNotNull(),
+            AnimeTheme::ATTRIBUTE_SLUG => fake()->word(),
+            AnimeTheme::ATTRIBUTE_TYPE => $type->value,
         ];
     }
 }

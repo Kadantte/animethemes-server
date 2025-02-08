@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Class VideoRepository.
+ *
+ * @extends EloquentRepository<Video>
  */
 class VideoRepository extends EloquentRepository
 {
@@ -25,23 +27,6 @@ class VideoRepository extends EloquentRepository
     }
 
     /**
-     * Validate repository filter.
-     *
-     * @param  string  $filter
-     * @param  mixed  $value
-     * @return bool
-     */
-    public function validateFilter(string $filter, mixed $value = null): bool
-    {
-        if ($filter === 'path') {
-            // Defer to source repository for validation
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
      * Filter repository models.
      *
      * @param  string  $filter
@@ -51,7 +36,7 @@ class VideoRepository extends EloquentRepository
     public function handleFilter(string $filter, mixed $value = null): void
     {
         if ($filter === 'path') {
-            $this->query->where(Video::ATTRIBUTE_PATH, ComparisonOperator::LIKE, "$value%");
+            $this->query->where(Video::ATTRIBUTE_PATH, ComparisonOperator::LIKE->value, "$value%");
         }
     }
 }

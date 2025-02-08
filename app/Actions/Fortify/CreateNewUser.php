@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Fortify;
 
 use App\Models\Auth\User;
-use Illuminate\Database\Eloquent\Model;
+use App\Rules\ModerationRule;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -13,7 +13,6 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
-use Laravel\Jetstream\Jetstream;
 
 /**
  * Class CreateNewUser.
@@ -23,24 +22,28 @@ class CreateNewUser implements CreatesNewUsers
     /**
      * Validate and create a newly registered user.
      *
-     * @param  array  $input
-     * @return Model
+     * @param  array<string, string>  $input
+     * @return User
      *
      * @throws ValidationException
      */
-    public function create(array $input): Model
+    public function create(array $input): User
     {
         Validator::make($input, [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::TABLE)],
-            'password' => Password::required(),
-            'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['required'] : '',
+            User::ATTRIBUTE_NAME => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique(User::class), new ModerationRule()],
+            User::ATTRIBUTE_EMAIL => ['required', 'string', 'email', 'max:255', 'indisposable', Rule::unique(User::class)],
+            User::ATTRIBUTE_PASSWORD => Password::required(),
+            'terms' => ['required'],
         ])->validate();
 
-        return User::query()->create([
-            User::ATTRIBUTE_NAME => Arr::get($input, 'name'),
-            User::ATTRIBUTE_EMAIL => Arr::get($input, 'email'),
-            User::ATTRIBUTE_PASSWORD => Hash::make(Arr::get($input, 'password')),
+        $user = new User([
+            User::ATTRIBUTE_NAME => Arr::get($input, User::ATTRIBUTE_NAME),
+            User::ATTRIBUTE_EMAIL => Arr::get($input, User::ATTRIBUTE_EMAIL),
+            User::ATTRIBUTE_PASSWORD => Hash::make(Arr::get($input, User::ATTRIBUTE_PASSWORD)),
         ]);
+
+        $user->save();
+
+        return $user;
     }
 }

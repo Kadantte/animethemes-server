@@ -4,24 +4,30 @@ declare(strict_types=1);
 
 namespace App\Models\Wiki\Anime\Theme;
 
+use App\Concerns\Models\Reportable;
+use App\Contracts\Http\Api\InteractsWithSchema;
+use App\Enums\Models\Wiki\ThemeType;
 use App\Events\Wiki\Anime\Theme\Entry\EntryCreated;
 use App\Events\Wiki\Anime\Theme\Entry\EntryDeleted;
 use App\Events\Wiki\Anime\Theme\Entry\EntryDeleting;
 use App\Events\Wiki\Anime\Theme\Entry\EntryRestored;
 use App\Events\Wiki\Anime\Theme\Entry\EntryUpdated;
+use App\Http\Api\Schema\Schema;
+use App\Http\Api\Schema\Wiki\Anime\Theme\EntrySchema;
+use App\Http\Resources\Pivot\Wiki\Resource\AnimeThemeEntryVideoResource;
 use App\Models\BaseModel;
 use App\Models\Wiki\Anime;
 use App\Models\Wiki\Anime\AnimeTheme;
 use App\Models\Wiki\Video;
-use App\Pivots\AnimeThemeEntryVideo;
+use App\Pivots\Wiki\AnimeThemeEntryVideo;
+use App\Scopes\WithoutInsertSongScope;
 use Database\Factories\Wiki\Anime\Theme\AnimeThemeEntryFactory;
-use ElasticScoutDriverPlus\Searchable;
+use Elastic\ScoutDriverPlus\Searchable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
-use Laravel\Nova\Actions\Actionable;
 use Znck\Eloquent\Relations\BelongsToThrough;
 
 /**
@@ -40,9 +46,9 @@ use Znck\Eloquent\Relations\BelongsToThrough;
  *
  * @method static AnimeThemeEntryFactory factory(...$parameters)
  */
-class AnimeThemeEntry extends BaseModel
+class AnimeThemeEntry extends BaseModel implements InteractsWithSchema
 {
-    use Actionable;
+    use Reportable;
     use Searchable;
     use \Znck\Eloquent\Traits\BelongsToThrough;
 
@@ -61,12 +67,13 @@ class AnimeThemeEntry extends BaseModel
     final public const RELATION_SONG = 'animetheme.song';
     final public const RELATION_SYNONYMS = 'animetheme.anime.animesynonyms';
     final public const RELATION_THEME = 'animetheme';
+    final public const RELATION_THEME_GROUP = 'animetheme.group';
     final public const RELATION_VIDEOS = 'videos';
 
     /**
      * The attributes that are mass assignable.
      *
-     * @var string[]
+     * @var list<string>
      */
     protected $fillable = [
         AnimeThemeEntry::ATTRIBUTE_EPISODES,
@@ -107,15 +114,18 @@ class AnimeThemeEntry extends BaseModel
     protected $primaryKey = AnimeThemeEntry::ATTRIBUTE_ID;
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        AnimeThemeEntry::ATTRIBUTE_NSFW => 'boolean',
-        AnimeThemeEntry::ATTRIBUTE_SPOILER => 'boolean',
-        AnimeThemeEntry::ATTRIBUTE_VERSION => 'int',
-    ];
+    protected function casts(): array
+    {
+        return [
+            AnimeThemeEntry::ATTRIBUTE_NSFW => 'boolean',
+            AnimeThemeEntry::ATTRIBUTE_SPOILER => 'boolean',
+            AnimeThemeEntry::ATTRIBUTE_VERSION => 'int',
+        ];
+    }
 
     /**
      * Modify the query used to retrieve models when making all of the models searchable.
@@ -154,17 +164,43 @@ class AnimeThemeEntry extends BaseModel
      */
     public function getName(): string
     {
+        $this->loadMissing([
+            AnimeThemeEntry::RELATION_ANIME,
+            AnimeThemeEntry::RELATION_THEME,
+            AnimeThemeEntry::RELATION_THEME_GROUP,
+        ]);
+
+        $theme = is_null($this->animetheme)
+            ? $this->animetheme()->withoutGlobalScope(WithoutInsertSongScope::class)->first()
+            : $this->animetheme;
+
+        if (is_null($theme)) {
+            return strval($this->getKey());
+        }
+
         return Str::of($this->anime->name)
             ->append(' ')
-            ->append($this->animetheme->slug)
-            ->append(empty($this->version) ? '' : " V$this->version")
+            ->append($theme->type->localize())
+            ->append($theme->type === ThemeType::IN ? '' : strval($theme->sequence ?? 1))
+            ->append(empty($this->version) ? '' : "v$this->version")
+            ->append($theme->group !== null ? '-'.$theme->group->slug : '')
             ->__toString();
+    }
+
+    /**
+     * Get subtitle.
+     *
+     * @return string
+     */
+    public function getSubtitle(): string
+    {
+        return "{$this->anime->getName()} {$this->animetheme->getName()}";
     }
 
     /**
      * Get the theme that owns the entry.
      *
-     * @return BelongsTo
+     * @return BelongsTo<AnimeTheme, $this>
      */
     public function animetheme(): BelongsTo
     {
@@ -174,7 +210,7 @@ class AnimeThemeEntry extends BaseModel
     /**
      * Get the videos linked in the theme entry.
      *
-     * @return BelongsToMany
+     * @return BelongsToMany<Video, $this>
      */
     public function videos(): BelongsToMany
     {
@@ -185,6 +221,7 @@ class AnimeThemeEntry extends BaseModel
             Video::ATTRIBUTE_ID
         )
             ->using(AnimeThemeEntryVideo::class)
+            ->as(AnimeThemeEntryVideoResource::$wrap)
             ->withTimestamps();
     }
 
@@ -205,5 +242,15 @@ class AnimeThemeEntry extends BaseModel
                 AnimeTheme::class => AnimeTheme::ATTRIBUTE_ID,
             ]
         );
+    }
+
+    /**
+     * Get the schema for the model.
+     *
+     * @return Schema
+     */
+    public function schema(): Schema
+    {
+        return new EntrySchema();
     }
 }

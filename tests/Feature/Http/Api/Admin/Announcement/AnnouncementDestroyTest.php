@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Admin\Announcement;
 
+use App\Enums\Auth\CrudPermission;
 use App\Models\Admin\Announcement;
 use App\Models\Auth\User;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class AnnouncementDestroyTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Announcement Destroy Endpoint shall be protected by sanctum.
      *
@@ -32,6 +30,42 @@ class AnnouncementDestroyTest extends TestCase
     }
 
     /**
+     * The Announcement Destroy Endpoint shall forbid users without the delete announcement permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $announcement = Announcement::factory()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.announcement.destroy', ['announcement' => $announcement]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Announcement Destroy Endpoint shall forbid users from updating an announcement that is trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $announcement = Announcement::factory()->trashed()->createOne();
+
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(Announcement::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.announcement.destroy', ['announcement' => $announcement]));
+
+        $response->assertNotFound();
+    }
+
+    /**
      * The Announcement Destroy Endpoint shall delete the announcement.
      *
      * @return void
@@ -40,7 +74,7 @@ class AnnouncementDestroyTest extends TestCase
     {
         $announcement = Announcement::factory()->createOne();
 
-        $user = User::factory()->withPermission('delete announcement')->createOne();
+        $user = User::factory()->withPermissions(CrudPermission::DELETE->format(Announcement::class))->createOne();
 
         Sanctum::actingAs($user);
 

@@ -9,6 +9,7 @@ use App\Events\Wiki\Image\ImageDeleted;
 use App\Events\Wiki\Image\ImageRestored;
 use App\Events\Wiki\Image\ImageUpdated;
 use App\Models\Wiki\Image;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
@@ -24,8 +25,6 @@ class ImageTest extends TestCase
      */
     public function testImageCreatedEventDispatched(): void
     {
-        Event::fake();
-
         Image::factory()->createOne();
 
         Event::assertDispatched(ImageCreated::class);
@@ -38,8 +37,6 @@ class ImageTest extends TestCase
      */
     public function testImageDeletedEventDispatched(): void
     {
-        Event::fake();
-
         $image = Image::factory()->createOne();
 
         $image->delete();
@@ -54,8 +51,6 @@ class ImageTest extends TestCase
      */
     public function testImageRestoredEventDispatched(): void
     {
-        Event::fake();
-
         $image = Image::factory()->createOne();
 
         $image->restore();
@@ -72,8 +67,6 @@ class ImageTest extends TestCase
      */
     public function testImageRestoresQuietly(): void
     {
-        Event::fake();
-
         $image = Image::factory()->createOne();
 
         $image->restore();
@@ -88,8 +81,6 @@ class ImageTest extends TestCase
      */
     public function testImageUpdatedEventDispatched(): void
     {
-        Event::fake();
-
         $image = Image::factory()->createOne();
         $changes = Image::factory()->makeOne();
 
@@ -97,5 +88,25 @@ class ImageTest extends TestCase
         $image->save();
 
         Event::assertDispatched(ImageUpdated::class);
+    }
+
+    /**
+     * The ImageUpdated event shall contain embed fields.
+     *
+     * @return void
+     */
+    public function testImageUpdatedEventEmbedFields(): void
+    {
+        $image = Image::factory()->createOne();
+        $changes = Image::factory()->makeOne();
+
+        $image->fill($changes->getAttributes());
+        $image->save();
+
+        Event::assertDispatched(ImageUpdated::class, function (ImageUpdated $event) {
+            $message = $event->getDiscordMessage();
+
+            return ! empty(Arr::get($message->embed, 'fields'));
+        });
     }
 }

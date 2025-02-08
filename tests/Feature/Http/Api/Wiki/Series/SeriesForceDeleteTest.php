@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Series;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Series;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,10 +15,8 @@ use Tests\TestCase;
  */
 class SeriesForceDeleteTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
-     * The Series Force Destroy Endpoint shall be protected by sanctum.
+     * The Series Force Delete Endpoint shall be protected by sanctum.
      *
      * @return void
      */
@@ -32,7 +30,25 @@ class SeriesForceDeleteTest extends TestCase
     }
 
     /**
-     * The Series Force Destroy Endpoint shall force delete the series.
+     * The Series Force Delete Endpoint shall forbid users without the force delete series permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $series = Series::factory()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->delete(route('api.series.forceDelete', ['series' => $series]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Series Force Delete Endpoint shall force delete the series.
      *
      * @return void
      */
@@ -40,7 +56,7 @@ class SeriesForceDeleteTest extends TestCase
     {
         $series = Series::factory()->createOne();
 
-        $user = User::factory()->withPermission('force delete series')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::FORCE_DELETE->format(Series::class))->createOne();
 
         Sanctum::actingAs($user);
 

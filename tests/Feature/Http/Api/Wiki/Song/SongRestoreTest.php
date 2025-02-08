@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\Api\Wiki\Song;
 
+use App\Enums\Auth\ExtendedCrudPermission;
 use App\Models\Auth\User;
 use App\Models\Wiki\Song;
-use Illuminate\Foundation\Testing\WithoutEvents;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ use Tests\TestCase;
  */
 class SongRestoreTest extends TestCase
 {
-    use WithoutEvents;
-
     /**
      * The Song Restore Endpoint shall be protected by sanctum.
      *
@@ -24,13 +22,47 @@ class SongRestoreTest extends TestCase
      */
     public function testProtected(): void
     {
-        $song = Song::factory()->createOne();
-
-        $song->delete();
+        $song = Song::factory()->trashed()->createOne();
 
         $response = $this->patch(route('api.song.restore', ['song' => $song]));
 
         $response->assertUnauthorized();
+    }
+
+    /**
+     * The Song Restore Endpoint shall forbid users without the restore song permission.
+     *
+     * @return void
+     */
+    public function testForbidden(): void
+    {
+        $song = Song::factory()->trashed()->createOne();
+
+        $user = User::factory()->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.song.restore', ['song' => $song]));
+
+        $response->assertForbidden();
+    }
+
+    /**
+     * The Song Restore Endpoint shall forbid users from restoring a song that isn't trashed.
+     *
+     * @return void
+     */
+    public function testTrashed(): void
+    {
+        $song = Song::factory()->createOne();
+
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Song::class))->createOne();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->patch(route('api.song.restore', ['song' => $song]));
+
+        $response->assertForbidden();
     }
 
     /**
@@ -40,11 +72,9 @@ class SongRestoreTest extends TestCase
      */
     public function testRestored(): void
     {
-        $song = Song::factory()->createOne();
+        $song = Song::factory()->trashed()->createOne();
 
-        $song->delete();
-
-        $user = User::factory()->withPermission('restore song')->createOne();
+        $user = User::factory()->withPermissions(ExtendedCrudPermission::RESTORE->format(Song::class))->createOne();
 
         Sanctum::actingAs($user);
 

@@ -18,16 +18,6 @@ use App\Models\Admin\Announcement;
 class AnnouncementSchema extends EloquentSchema
 {
     /**
-     * The model this schema represents.
-     *
-     * @return string
-     */
-    public function model(): string
-    {
-        return Announcement::class;
-    }
-
-    /**
      * Get the type of the resource.
      *
      * @return string
@@ -44,7 +34,10 @@ class AnnouncementSchema extends EloquentSchema
      */
     public function allowedIncludes(): array
     {
-        return [];
+        return array_merge(
+            $this->withIntermediatePaths([]),
+            []
+        );
     }
 
     /**
@@ -57,8 +50,8 @@ class AnnouncementSchema extends EloquentSchema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Announcement::ATTRIBUTE_ID),
-                new AnnouncementContentField(),
+                new IdField($this, Announcement::ATTRIBUTE_ID),
+                new AnnouncementContentField($this),
             ],
         );
     }

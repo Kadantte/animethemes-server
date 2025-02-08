@@ -4,126 +4,142 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki\Anime;
 
-use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Anime\Theme\ThemeDestroyRequest;
-use App\Http\Requests\Api\Wiki\Anime\Theme\ThemeForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Anime\Theme\ThemeIndexRequest;
-use App\Http\Requests\Api\Wiki\Anime\Theme\ThemeRestoreRequest;
-use App\Http\Requests\Api\Wiki\Anime\Theme\ThemeShowRequest;
-use App\Http\Requests\Api\Wiki\Anime\Theme\ThemeStoreRequest;
-use App\Http\Requests\Api\Wiki\Anime\Theme\ThemeUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Anime\Collection\ThemeCollection;
+use App\Http\Resources\Wiki\Anime\Resource\ThemeResource;
 use App\Models\Wiki\Anime\AnimeTheme;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class ThemeController.
  */
-class ThemeController extends Controller
+class ThemeController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(AnimeTheme::class, 'animetheme');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  ThemeIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return ThemeCollection
      */
-    #[Route(fullUri: 'animetheme', name: 'animetheme.index')]
-    public function index(ThemeIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): ThemeCollection
     {
-        $query = $request->getQuery();
+        $query = new Query($request->validated());
 
-        if ($query->hasSearchCriteria()) {
-            return $query->search(PaginationStrategy::OFFSET())->toResponse($request);
-        }
+        $themes = $query->hasSearchCriteria()
+            ? $action->search($query, $request->schema())
+            : $action->index(AnimeTheme::query(), $query, $request->schema());
 
-        return $query->index()->toResponse($request);
+        return new ThemeCollection($themes, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  ThemeStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return ThemeResource
      */
-    #[Route(fullUri: 'animetheme', name: 'animetheme.store', middleware: 'auth:sanctum')]
-    public function store(ThemeStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): ThemeResource
     {
-        $resource = $request->getQuery()->store();
+        $theme = $action->store(AnimeTheme::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new ThemeResource($theme, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  ThemeShowRequest  $request
-     * @param  AnimeTheme  $theme
-     * @return JsonResponse
+     * @param  ShowRequest  $request
+     * @param  AnimeTheme  $animetheme
+     * @param  ShowAction  $action
+     * @return ThemeResource
      */
-    #[Route(fullUri: 'animetheme/{animetheme}', name: 'animetheme.show')]
-    public function show(ThemeShowRequest $request, AnimeTheme $theme): JsonResponse
+    public function show(ShowRequest $request, AnimeTheme $animetheme, ShowAction $action): ThemeResource
     {
-        $resource = $request->getQuery()->show($theme);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($animetheme, $query, $request->schema());
+
+        return new ThemeResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  ThemeUpdateRequest  $request
-     * @param  AnimeTheme  $theme
-     * @return JsonResponse
+     * @param  UpdateRequest  $request
+     * @param  AnimeTheme  $animetheme
+     * @param  UpdateAction  $action
+     * @return ThemeResource
      */
-    #[Route(fullUri: 'animetheme/{animetheme}', name: 'animetheme.update', middleware: 'auth:sanctum')]
-    public function update(ThemeUpdateRequest $request, AnimeTheme $theme): JsonResponse
+    public function update(UpdateRequest $request, AnimeTheme $animetheme, UpdateAction $action): ThemeResource
     {
-        $resource = $request->getQuery()->update($theme);
+        $updated = $action->update($animetheme, $request->validated());
 
-        return $resource->toResponse($request);
+        return new ThemeResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  ThemeDestroyRequest  $request
-     * @param  AnimeTheme  $theme
-     * @return JsonResponse
+     * @param  AnimeTheme  $animetheme
+     * @param  DestroyAction  $action
+     * @return ThemeResource
      */
-    #[Route(fullUri: 'animetheme/{animetheme}', name: 'animetheme.destroy', middleware: 'auth:sanctum')]
-    public function destroy(ThemeDestroyRequest $request, AnimeTheme $theme): JsonResponse
+    public function destroy(AnimeTheme $animetheme, DestroyAction $action): ThemeResource
     {
-        $resource = $request->getQuery()->destroy($theme);
+        $deleted = $action->destroy($animetheme);
 
-        return $resource->toResponse($request);
+        return new ThemeResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  ThemeRestoreRequest  $request
-     * @param  AnimeTheme  $theme
-     * @return JsonResponse
+     * @param  AnimeTheme  $animetheme
+     * @param  RestoreAction  $action
+     * @return ThemeResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/animetheme/{animetheme}', name: 'animetheme.restore', middleware: 'auth:sanctum')]
-    public function restore(ThemeRestoreRequest $request, AnimeTheme $theme): JsonResponse
+    public function restore(AnimeTheme $animetheme, RestoreAction $action): ThemeResource
     {
-        $resource = $request->getQuery()->restore($theme);
+        $restored = $action->restore($animetheme);
 
-        return $resource->toResponse($request);
+        return new ThemeResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  ThemeForceDeleteRequest  $request
-     * @param  AnimeTheme  $theme
+     * @param  AnimeTheme  $animetheme
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/animetheme/{animetheme}', name: 'animetheme.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(ThemeForceDeleteRequest $request, AnimeTheme $theme): JsonResponse
+    public function forceDelete(AnimeTheme $animetheme, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($theme);
+        $message = $action->forceDelete($animetheme);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

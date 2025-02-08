@@ -33,13 +33,15 @@ class ArtistFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function definition(): array
     {
+        $name = fake()->words(3, true);
+
         return [
-            Artist::ATTRIBUTE_SLUG => Str::slug($this->faker->text(191), '_'),
-            Artist::ATTRIBUTE_NAME => $this->faker->words(3, true),
+            Artist::ATTRIBUTE_SLUG => Str::slug($name, '_'),
+            Artist::ATTRIBUTE_NAME => $name,
         ];
     }
 
@@ -55,27 +57,27 @@ class ArtistFactory extends Factory
                 Song::factory()
                     ->hasAttached($artist)
                     ->has(AnimeTheme::factory()->for(Anime::factory()))
-                    ->count($this->faker->randomDigitNotNull())
+                    ->count(fake()->randomDigitNotNull())
                     ->create();
 
                 Artist::factory()
-                    ->hasAttached($artist, [], 'members')
-                    ->count($this->faker->randomDigitNotNull())
+                    ->hasAttached($artist, [], Artist::RELATION_MEMBERS)
+                    ->count(fake()->randomDigitNotNull())
                     ->create();
 
                 Artist::factory()
-                    ->hasAttached($artist, [], 'groups')
-                    ->count($this->faker->randomDigitNotNull())
+                    ->hasAttached($artist, [], Artist::RELATION_GROUPS)
+                    ->count(fake()->randomDigitNotNull())
                     ->create();
 
                 ExternalResource::factory()
                     ->hasAttached($artist)
-                    ->count($this->faker->randomDigitNotNull())
+                    ->count(fake()->randomDigitNotNull())
                     ->create();
 
                 Image::factory()
                     ->hasAttached($artist)
-                    ->count($this->faker->randomDigitNotNull())
+                    ->count(fake()->randomDigitNotNull())
                     ->create();
             }
         );

@@ -4,126 +4,142 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Wiki;
 
-use App\Enums\Http\Api\Paging\PaginationStrategy;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\Wiki\Studio\StudioDestroyRequest;
-use App\Http\Requests\Api\Wiki\Studio\StudioForceDeleteRequest;
-use App\Http\Requests\Api\Wiki\Studio\StudioIndexRequest;
-use App\Http\Requests\Api\Wiki\Studio\StudioRestoreRequest;
-use App\Http\Requests\Api\Wiki\Studio\StudioShowRequest;
-use App\Http\Requests\Api\Wiki\Studio\StudioStoreRequest;
-use App\Http\Requests\Api\Wiki\Studio\StudioUpdateRequest;
+use App\Actions\Http\Api\DestroyAction;
+use App\Actions\Http\Api\ForceDeleteAction;
+use App\Actions\Http\Api\IndexAction;
+use App\Actions\Http\Api\RestoreAction;
+use App\Actions\Http\Api\ShowAction;
+use App\Actions\Http\Api\StoreAction;
+use App\Actions\Http\Api\UpdateAction;
+use App\Http\Api\Query\Query;
+use App\Http\Controllers\Api\BaseController;
+use App\Http\Requests\Api\IndexRequest;
+use App\Http\Requests\Api\ShowRequest;
+use App\Http\Requests\Api\StoreRequest;
+use App\Http\Requests\Api\UpdateRequest;
+use App\Http\Resources\Wiki\Collection\StudioCollection;
+use App\Http\Resources\Wiki\Resource\StudioResource;
 use App\Models\Wiki\Studio;
 use Illuminate\Http\JsonResponse;
-use Spatie\RouteDiscovery\Attributes\Route;
 
 /**
  * Class StudioController.
  */
-class StudioController extends Controller
+class StudioController extends BaseController
 {
+    /**
+     * Create a new controller instance.
+     */
+    public function __construct()
+    {
+        parent::__construct(Studio::class, 'studio');
+    }
+
     /**
      * Display a listing of the resource.
      *
-     * @param  StudioIndexRequest  $request
-     * @return JsonResponse
+     * @param  IndexRequest  $request
+     * @param  IndexAction  $action
+     * @return StudioCollection
      */
-    #[Route(fullUri: 'studio', name: 'studio.index')]
-    public function index(StudioIndexRequest $request): JsonResponse
+    public function index(IndexRequest $request, IndexAction $action): StudioCollection
     {
-        $query = $request->getQuery();
+        $query = new Query($request->validated());
 
-        if ($query->hasSearchCriteria()) {
-            return $query->search(PaginationStrategy::OFFSET())->toResponse($request);
-        }
+        $studios = $query->hasSearchCriteria()
+            ? $action->search($query, $request->schema())
+            : $action->index(Studio::query(), $query, $request->schema());
 
-        return $query->index()->toResponse($request);
+        return new StudioCollection($studios, $query);
     }
 
     /**
      * Store a newly created resource.
      *
-     * @param  StudioStoreRequest  $request
-     * @return JsonResponse
+     * @param  StoreRequest  $request
+     * @param  StoreAction  $action
+     * @return StudioResource
      */
-    #[Route(fullUri: 'studio', name: 'studio.store', middleware: 'auth:sanctum')]
-    public function store(StudioStoreRequest $request): JsonResponse
+    public function store(StoreRequest $request, StoreAction $action): StudioResource
     {
-        $resource = $request->getQuery()->store();
+        $studio = $action->store(Studio::query(), $request->validated());
 
-        return $resource->toResponse($request);
+        return new StudioResource($studio, new Query());
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  StudioShowRequest  $request
+     * @param  ShowRequest  $request
      * @param  Studio  $studio
-     * @return JsonResponse
+     * @param  ShowAction  $action
+     * @return StudioResource
      */
-    #[Route(fullUri: 'studio/{studio}', name: 'studio.show')]
-    public function show(StudioShowRequest $request, Studio $studio): JsonResponse
+    public function show(ShowRequest $request, Studio $studio, ShowAction $action): StudioResource
     {
-        $resource = $request->getQuery()->show($studio);
+        $query = new Query($request->validated());
 
-        return $resource->toResponse($request);
+        $show = $action->show($studio, $query, $request->schema());
+
+        return new StudioResource($show, $query);
     }
 
     /**
      * Update the specified resource.
      *
-     * @param  StudioUpdateRequest  $request
+     * @param  UpdateRequest  $request
      * @param  Studio  $studio
-     * @return JsonResponse
+     * @param  UpdateAction  $action
+     * @return StudioResource
      */
-    #[Route(fullUri: 'studio/{studio}', name: 'studio.update', middleware: 'auth:sanctum')]
-    public function update(StudioUpdateRequest $request, Studio $studio): JsonResponse
+    public function update(UpdateRequest $request, Studio $studio, UpdateAction $action): StudioResource
     {
-        $resource = $request->getQuery()->update($studio);
+        $updated = $action->update($studio, $request->validated());
 
-        return $resource->toResponse($request);
+        return new StudioResource($updated, new Query());
     }
 
     /**
      * Remove the specified resource.
      *
-     * @param  StudioDestroyRequest  $request
      * @param  Studio  $studio
-     * @return JsonResponse
+     * @param  DestroyAction  $action
+     * @return StudioResource
      */
-    #[Route(fullUri: 'studio/{studio}', name: 'studio.destroy', middleware: 'auth:sanctum')]
-    public function destroy(StudioDestroyRequest $request, Studio $studio): JsonResponse
+    public function destroy(Studio $studio, DestroyAction $action): StudioResource
     {
-        $resource = $request->getQuery()->destroy($studio);
+        $deleted = $action->destroy($studio);
 
-        return $resource->toResponse($request);
+        return new StudioResource($deleted, new Query());
     }
 
     /**
      * Restore the specified resource.
      *
-     * @param  StudioRestoreRequest  $request
      * @param  Studio  $studio
-     * @return JsonResponse
+     * @param  RestoreAction  $action
+     * @return StudioResource
      */
-    #[Route(method: 'patch', fullUri: 'restore/studio/{studio}', name: 'studio.restore', middleware: 'auth:sanctum')]
-    public function restore(StudioRestoreRequest $request, Studio $studio): JsonResponse
+    public function restore(Studio $studio, RestoreAction $action): StudioResource
     {
-        $resource = $request->getQuery()->restore($studio);
+        $restored = $action->restore($studio);
 
-        return $resource->toResponse($request);
+        return new StudioResource($restored, new Query());
     }
 
     /**
      * Hard-delete the specified resource.
      *
-     * @param  StudioForceDeleteRequest  $request
      * @param  Studio  $studio
+     * @param  ForceDeleteAction  $action
      * @return JsonResponse
      */
-    #[Route(method: 'delete', fullUri: 'forceDelete/studio/{studio}', name: 'studio.forceDelete', middleware: 'auth:sanctum')]
-    public function forceDelete(StudioForceDeleteRequest $request, Studio $studio): JsonResponse
+    public function forceDelete(Studio $studio, ForceDeleteAction $action): JsonResponse
     {
-        return $request->getQuery()->forceDelete($studio);
+        $message = $action->forceDelete($studio);
+
+        return new JsonResponse([
+            'message' => $message,
+        ]);
     }
 }

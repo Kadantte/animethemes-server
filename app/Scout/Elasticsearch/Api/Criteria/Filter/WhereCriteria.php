@@ -8,10 +8,10 @@ use App\Enums\Http\Api\Filter\BinaryLogicalOperator;
 use App\Enums\Http\Api\Filter\ComparisonOperator;
 use App\Http\Api\Criteria\Filter\WhereCriteria as BaseCriteria;
 use App\Http\Api\Filter\Filter;
-use App\Http\Api\Query\ReadQuery;
-use ElasticScoutDriverPlus\Builders\BoolQueryBuilder;
-use ElasticScoutDriverPlus\Builders\QueryBuilderInterface;
-use ElasticScoutDriverPlus\Support\Query as ElasticQuery;
+use App\Http\Api\Query\Query;
+use Elastic\ScoutDriverPlus\Builders\BoolQueryBuilder;
+use Elastic\ScoutDriverPlus\Builders\QueryBuilderInterface;
+use Elastic\ScoutDriverPlus\Support\Query as ElasticQuery;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
@@ -35,22 +35,22 @@ class WhereCriteria extends Criteria
      *
      * @param  BoolQueryBuilder  $builder
      * @param  Filter  $filter
-     * @param  ReadQuery  $query
+     * @param  Query  $query
      * @return BoolQueryBuilder
      */
-    public function filter(BoolQueryBuilder $builder, Filter $filter, ReadQuery $query): BoolQueryBuilder
+    public function filter(BoolQueryBuilder $builder, Filter $filter, Query $query): BoolQueryBuilder
     {
         $clause = $this->getElasticsearchClause($filter);
 
-        if (BinaryLogicalOperator::OR()->is($this->criteria->getLogicalOperator())) {
-            if (ComparisonOperator::NE()->is($this->criteria->getComparisonOperator())) {
-                return $builder->should((new BoolQueryBuilder())->mustNot($clause));
+        if (BinaryLogicalOperator::OR === $this->criteria->getLogicalOperator()) {
+            if (ComparisonOperator::NE === $this->criteria->getComparisonOperator()) {
+                return $builder->should(new BoolQueryBuilder()->mustNot($clause));
             }
 
             return $builder->should($clause);
         }
 
-        if (ComparisonOperator::NE()->is($this->criteria->getComparisonOperator())) {
+        if (ComparisonOperator::NE === $this->criteria->getComparisonOperator()) {
             return $builder->mustNot($clause);
         }
 
@@ -67,7 +67,7 @@ class WhereCriteria extends Criteria
     {
         $filterValue = $this->coerceFilterValue($filter);
 
-        return match ($this->criteria->getComparisonOperator()?->value) {
+        return match ($this->criteria->getComparisonOperator()) {
             ComparisonOperator::LT => ElasticQuery::range()->field($filter->getColumn())->lt($filterValue),
             ComparisonOperator::GT => ElasticQuery::range()->field($filter->getColumn())->gt($filterValue),
             ComparisonOperator::LTE => ElasticQuery::range()->field($filter->getColumn())->lte($filterValue),

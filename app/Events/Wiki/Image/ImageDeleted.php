@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Events\Wiki\Image;
 
 use App\Events\Base\Wiki\WikiDeletedEvent;
+use App\Filament\Resources\Wiki\Image as ImageFilament;
 use App\Models\Wiki\Image;
-use App\Nova\Resources\Wiki\Image as ImageResource;
 
 /**
  * Class ImageDeleted.
@@ -46,7 +46,7 @@ class ImageDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the message for the nova notification.
+     * Get the message for the filament notification.
      *
      * @return string
      */
@@ -56,13 +56,13 @@ class ImageDeleted extends WikiDeletedEvent
     }
 
     /**
-     * Get the URL for the nova notification.
+     * Get the URL for the Filament notification.
      *
      * @return string
      */
-    protected function getNotificationUrl(): string
+    protected function getFilamentNotificationUrl(): string
     {
-        $uriKey = ImageResource::uriKey();
+        $uriKey = ImageFilament::getRecordSlug();
 
         return "/resources/$uriKey/{$this->getModel()->getKey()}";
     }

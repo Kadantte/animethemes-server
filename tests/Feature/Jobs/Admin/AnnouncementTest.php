@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Jobs\Admin;
 
-use App\Constants\Config\FlagConstants;
+use App\Constants\FeatureConstants;
+use App\Events\Admin\Announcement\AnnouncementCreated;
+use App\Events\Admin\Announcement\AnnouncementDeleted;
+use App\Events\Admin\Announcement\AnnouncementRestored;
+use App\Events\Admin\Announcement\AnnouncementUpdated;
 use App\Jobs\SendDiscordNotificationJob;
 use App\Models\Admin\Announcement;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
+use Laravel\Pennant\Feature;
 use Tests\TestCase;
 
 /**
@@ -23,8 +28,9 @@ class AnnouncementTest extends TestCase
      */
     public function testAnnouncementCreatedSendsDiscordNotification(): void
     {
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(AnnouncementCreated::class);
 
         Announcement::factory()->createOne();
 
@@ -40,8 +46,9 @@ class AnnouncementTest extends TestCase
     {
         $announcement = Announcement::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(AnnouncementDeleted::class);
 
         $announcement->delete();
 
@@ -57,8 +64,9 @@ class AnnouncementTest extends TestCase
     {
         $announcement = Announcement::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(AnnouncementRestored::class);
 
         $announcement->restore();
 
@@ -74,8 +82,9 @@ class AnnouncementTest extends TestCase
     {
         $announcement = Announcement::factory()->createOne();
 
-        Config::set(FlagConstants::ALLOW_DISCORD_NOTIFICATIONS_FLAG_QUALIFIED, true);
+        Feature::activate(FeatureConstants::ALLOW_DISCORD_NOTIFICATIONS);
         Bus::fake(SendDiscordNotificationJob::class);
+        Event::fakeExcept(AnnouncementUpdated::class);
 
         $changes = Announcement::factory()->makeOne();
 

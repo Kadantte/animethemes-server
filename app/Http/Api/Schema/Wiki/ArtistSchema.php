@@ -4,31 +4,42 @@ declare(strict_types=1);
 
 namespace App\Http\Api\Schema\Wiki;
 
+use App\Contracts\Http\Api\Schema\InteractsWithPivots;
+use App\Contracts\Http\Api\Schema\SearchableSchema;
 use App\Http\Api\Field\Base\IdField;
 use App\Http\Api\Field\Field;
-use App\Http\Api\Field\Wiki\Artist\ArtistAsField;
 use App\Http\Api\Field\Wiki\Artist\ArtistNameField;
 use App\Http\Api\Field\Wiki\Artist\ArtistSlugField;
 use App\Http\Api\Include\AllowedInclude;
 use App\Http\Api\Schema\EloquentSchema;
+use App\Http\Api\Schema\Pivot\Wiki\ArtistMemberSchema;
+use App\Http\Api\Schema\Pivot\Wiki\ArtistResourceSchema;
+use App\Http\Api\Schema\Pivot\Wiki\ArtistSongSchema;
 use App\Http\Api\Schema\Wiki\Anime\Theme\EntrySchema;
 use App\Http\Api\Schema\Wiki\Anime\ThemeSchema;
+use App\Http\Resources\Pivot\Wiki\Resource\ArtistMemberResource;
+use App\Http\Resources\Pivot\Wiki\Resource\ArtistResourceResource;
+use App\Http\Resources\Pivot\Wiki\Resource\ArtistSongResource;
 use App\Http\Resources\Wiki\Resource\ArtistResource;
 use App\Models\Wiki\Artist;
 
 /**
  * Class ArtistSchema.
  */
-class ArtistSchema extends EloquentSchema
+class ArtistSchema extends EloquentSchema implements InteractsWithPivots, SearchableSchema
 {
     /**
-     * The model this schema represents.
+     * Get the allowed pivots of the schema.
      *
-     * @return string
+     * @return AllowedInclude[]
      */
-    public function model(): string
+    public function allowedPivots(): array
     {
-        return Artist::class;
+        return [
+            new AllowedInclude(new ArtistMemberSchema(), ArtistMemberResource::$wrap),
+            new AllowedInclude(new ArtistResourceSchema(), ArtistResourceResource::$wrap),
+            new AllowedInclude(new ArtistSongSchema(), ArtistSongResource::$wrap),
+        ];
     }
 
     /**
@@ -48,23 +59,38 @@ class ArtistSchema extends EloquentSchema
      */
     public function allowedIncludes(): array
     {
-        return [
-            new AllowedInclude(new AnimeSchema(), Artist::RELATION_ANIME),
-            new AllowedInclude(new ArtistSchema(), Artist::RELATION_GROUPS),
-            new AllowedInclude(new ArtistSchema(), Artist::RELATION_MEMBERS),
-            new AllowedInclude(new ExternalResourceSchema(), Artist::RELATION_RESOURCES),
-            new AllowedInclude(new ImageSchema(), Artist::RELATION_IMAGES),
-            new AllowedInclude(new SongSchema(), Artist::RELATION_SONGS),
-            new AllowedInclude(new ThemeSchema(), Artist::RELATION_ANIMETHEMES),
+        return array_merge(
+            $this->withIntermediatePaths([
+                new AllowedInclude(new AnimeSchema(), Artist::RELATION_ANIME),
+                new AllowedInclude(new ArtistSchema(), Artist::RELATION_GROUPS),
+                new AllowedInclude(new ArtistSchema(), Artist::RELATION_MEMBERS),
+                new AllowedInclude(new ExternalResourceSchema(), Artist::RELATION_RESOURCES),
+                new AllowedInclude(new GroupSchema(), Artist::RELATION_THEME_GROUPS),
+                new AllowedInclude(new ImageSchema(), Artist::RELATION_IMAGES),
+                new AllowedInclude(new SongSchema(), Artist::RELATION_SONGS),
+                new AllowedInclude(new ThemeSchema(), Artist::RELATION_ANIMETHEMES),
 
-            // Undocumented paths needed for client builds
-            new AllowedInclude(new ArtistSchema(), 'songs.artists'),
-            new AllowedInclude(new SongSchema(), 'songs.animethemes.song'),
-            new AllowedInclude(new ArtistSchema(), 'songs.animethemes.song.artists'),
-            new AllowedInclude(new ImageSchema(), 'songs.animethemes.anime.images'),
-            new AllowedInclude(new EntrySchema(), 'songs.animethemes.animethemeentries'),
-            new AllowedInclude(new VideoSchema(), 'songs.animethemes.animethemeentries.videos'),
-        ];
+                // Undocumented paths needed for client builds
+                new AllowedInclude(new ArtistSchema(), 'groups.songs.artists'),
+                new AllowedInclude(new SongSchema(), 'groups.songs.animethemes.song'),
+                new AllowedInclude(new GroupSchema(), 'groups.songs.animethemes.group'),
+                new AllowedInclude(new ArtistSchema(), 'groups.songs.animethemes.song.artists'),
+                new AllowedInclude(new ImageSchema(), 'groups.songs.animethemes.anime.images'),
+                new AllowedInclude(new EntrySchema(), 'groups.songs.animethemes.animethemeentries'),
+                new AllowedInclude(new VideoSchema(), 'groups.songs.animethemes.animethemeentries.videos'),
+                new AllowedInclude(new AudioSchema(), 'groups.songs.animethemes.animethemeentries.videos.audio'),
+                new AllowedInclude(new ExternalResourceSchema(), 'groups.songs.resources'),
+                new AllowedInclude(new ArtistSchema(), 'songs.artists'),
+                new AllowedInclude(new SongSchema(), 'songs.animethemes.song'),
+                new AllowedInclude(new ArtistSchema(), 'songs.animethemes.song.artists'),
+                new AllowedInclude(new ImageSchema(), 'songs.animethemes.anime.images'),
+                new AllowedInclude(new EntrySchema(), 'songs.animethemes.animethemeentries'),
+                new AllowedInclude(new VideoSchema(), 'songs.animethemes.animethemeentries.videos'),
+                new AllowedInclude(new AudioSchema(), 'songs.animethemes.animethemeentries.videos.audio'),
+                new AllowedInclude(new ExternalResourceSchema(), 'songs.resources'),
+            ]),
+            []
+        );
     }
 
     /**
@@ -77,10 +103,9 @@ class ArtistSchema extends EloquentSchema
         return array_merge(
             parent::fields(),
             [
-                new IdField(Artist::ATTRIBUTE_ID),
-                new ArtistNameField(),
-                new ArtistSlugField(),
-                new ArtistAsField(),
+                new IdField($this, Artist::ATTRIBUTE_ID),
+                new ArtistNameField($this),
+                new ArtistSlugField($this),
             ],
         );
     }

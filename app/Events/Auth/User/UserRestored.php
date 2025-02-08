@@ -4,44 +4,43 @@ declare(strict_types=1);
 
 namespace App\Events\Auth\User;
 
-use App\Constants\Config\ServiceConstants;
-use App\Contracts\Events\DiscordMessageEvent;
-use App\Enums\Discord\EmbedColor;
-use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Config;
-use NotificationChannels\Discord\DiscordMessage;
+use App\Events\Base\Admin\AdminRestoredEvent;
+use App\Models\Auth\User;
 
 /**
  * Class UserRestored.
+ *
+ * @extends AdminRestoredEvent<User>
  */
-class UserRestored extends UserEvent implements DiscordMessageEvent
+class UserRestored extends AdminRestoredEvent
 {
-    use Dispatchable;
-    use SerializesModels;
-
     /**
-     * Get Discord message payload.
+     * Create a new event instance.
      *
-     * @return DiscordMessage
+     * @param  User  $user
      */
-    public function getDiscordMessage(): DiscordMessage
+    public function __construct(User $user)
     {
-        $user = $this->getUser();
-
-        return DiscordMessage::create('', [
-            'description' => "User '**{$user->getName()}**' has been restored.",
-            'color' => EmbedColor::GREEN,
-        ]);
+        parent::__construct($user);
     }
 
     /**
-     * Get Discord channel the message will be sent to.
+     * Get the model that has fired this event.
+     *
+     * @return User
+     */
+    public function getModel(): User
+    {
+        return $this->model;
+    }
+
+    /**
+     * Get the description for the Discord message payload.
      *
      * @return string
      */
-    public function getDiscordChannel(): string
+    protected function getDiscordMessageDescription(): string
     {
-        return Config::get(ServiceConstants::ADMIN_DISCORD_CHANNEL_QUALIFIED);
+        return "User '**{$this->getModel()->getName()}**' has been restored.";
     }
 }
